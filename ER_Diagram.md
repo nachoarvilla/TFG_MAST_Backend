@@ -1,32 +1,37 @@
 ```mermaid
 erDiagram
-    USER ||--o{ TEAM_MEMBER : belongs_to
-    TEAM ||--o{ TEAM_MEMBER : has
+    USER ||--o{ TEAM : belongs_to
     USER ||--o{ PROJECT : creates
     TEAM ||--o{ PROJECT : manages
-    
-    PROJECT ||--o{ DOCUMENT : contains
-    PROJECT ||--o{ PROJECT_SCHEMA : uses
+    USER ||--o{ DOCUMENT : uploads
+
+    PROJECT ||--o{ PROJECT_DOCUMENT : includes
+    DOCUMENT ||--o{ PROJECT_DOCUMENT : instantiated_in
     
     SCHEMA ||--o{ SCHEMA_PUBLICATION : has_versions
-    SCHEMA_PUBLICATION ||--o{ PROJECT_SCHEMA : associated_to
+    PROJECT }o--o{ SCHEMA_PUBLICATION : uses_standards
     
-    DOCUMENT ||--o{ REGION : defines_areas
+    PROJECT_DOCUMENT ||--o{ REGION : defines_areas
     
     REGION ||--o{ ANNOTATION : tagged_with
     SCHEMA_PUBLICATION ||--o{ ANNOTATION : defines_types
     
+    PROJECT ||--o{ RELATION : groups
     RELATION ||--o{ RELATION_ACTOR : has_participants
     ANNOTATION ||--o{ RELATION_ACTOR : plays_role
     RELATION ||--o{ RELATION_ACTOR : plays_role_recursively
-    
-    PROJECT ||--o{ RELATION : groups
 
     USER {
         int id PK
         string username
         string email
         string password_hash
+    }
+
+    TEAM {
+        int id PK
+        string name
+        string description
     }
 
     PROJECT {
@@ -39,9 +44,21 @@ erDiagram
 
     DOCUMENT {
         int id PK
-        int project_id FK
         string file_path
         int total_pages
+        int uploader_id FK
+    }
+
+    PROJECT_DOCUMENT {
+        int id PK
+        int project_id FK
+        int document_id FK
+    }
+
+    SCHEMA {
+        int id PK
+        string name
+        string description
     }
 
     SCHEMA_PUBLICATION {
@@ -53,7 +70,7 @@ erDiagram
 
     REGION {
         int id PK
-        int document_id FK
+        int project_document_id FK
         int page_number
         string shape_type
         json coordinates
@@ -62,7 +79,7 @@ erDiagram
     ANNOTATION {
         int id PK
         int region_id FK
-        int type_id FK
+        int publication_id FK
         text notes
     }
 
