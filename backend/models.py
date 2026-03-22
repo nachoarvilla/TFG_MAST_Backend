@@ -30,7 +30,7 @@ class TeamMember(Base):
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     team_id = Column(Integer, ForeignKey("teams.id"), primary_key=True)
-    role = Column(String(50), default="viewer")
+    role = Column(String(50), default="member")
 
     # Relationships
     user = relationship("User", back_populates="teams")
