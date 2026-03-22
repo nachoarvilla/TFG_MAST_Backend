@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 import models
-from auth import create_access_token, hash_password, verify_password
+from auth import create_access_token, get_current_user, hash_password, verify_password
 from database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
@@ -20,6 +20,11 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     username_or_email: str
     password: str
+
+
+class TeamCreate(BaseModel):
+    name: str
+    description: str
 
 
 def get_db():
@@ -91,3 +96,28 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"database": "connected_placeholder", "api": "running"}
+
+
+@app.post("/teams", status_code=status.HTTP_201_CREATED)
+def create_team(team: TeamCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create a new team. The creator becomes the leader."""
+    # Check if team name already exists
+    existing_team = db.query(models.Team).filter(models.Team.name == team.name).first()
+    if existing_team:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A team with this name already exists",
+        )
+
+    # Create the team
+    team_obj = models.Team(name=team.name, description=team.description)
+    db.add(team_obj)
+    db.commit()
+    db.refresh(team_obj)
+
+    # Add the creator as leader
+    member = models.TeamMember(team_id=team_obj.id, user_id=current_user.id, role="leader")
+    db.add(member)
+    db.commit()
+
+    return {"id": team_obj.id, "name": team_obj.name, "description": team_obj.description}

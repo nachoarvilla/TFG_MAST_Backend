@@ -3,11 +3,23 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import argon2
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models import User
+
+# Configuration for Argon2
+ph = argon2.PasswordHasher()
+
+# Configuration for JWT
+SECRET_KEY = os.getenv("SECRET_KEY", "secret_key_for_JWT_hashing")  # We can change in production
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+security = HTTPBearer()
 
 # Configuration for Argon2
 ph = argon2.PasswordHasher()
@@ -48,17 +60,20 @@ def verify_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-def get_current_user(token: str) -> Optional[User]:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     """Get the current user from the JWT token."""
+    token = credentials.credentials
     payload = verify_token(token)
     if payload is None:
-        return None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     username: str = payload.get("sub")
     if username is None:
-        return None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
         return user
     finally:
         db.close()
