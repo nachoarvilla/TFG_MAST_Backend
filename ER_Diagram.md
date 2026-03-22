@@ -1,6 +1,6 @@
 ```mermaid
 erDiagram
-    USER ||--o{ TEAM : belongs_to
+    USER }o--o{ TEAM : belongs_to
     USER ||--o{ PROJECT : creates
     TEAM ||--o{ PROJECT : manages
     USER ||--o{ DOCUMENT : uploads
