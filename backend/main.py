@@ -264,3 +264,25 @@ def delete_team(team_id: int, current_user: models.User = Depends(get_current_us
     db.commit()
 
     return {"message": f"Team {team.name} deleted successfully"}
+
+
+@app.get("/teams/{team_id}/members", status_code=status.HTTP_200_OK)
+def list_team_members(team_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return a list of members of a team with username and role."""
+    # Ensure the team exists
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    # Read members
+    memberships = db.query(models.TeamMember).filter(models.TeamMember.team_id == team_id).all()
+    result = []
+    for membership in memberships:
+        user = db.query(models.User).filter(models.User.id == membership.user_id).first()
+        if user:
+            result.append({"username": user.username, "role": membership.role})
+
+    return {"team_id": team_id, "team_name": team.name, "members": result}
