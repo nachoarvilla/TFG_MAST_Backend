@@ -27,6 +27,10 @@ class TeamCreate(BaseModel):
     description: str
 
 
+class AddMemberRequest(BaseModel):
+    username: str
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -121,3 +125,53 @@ def create_team(team: TeamCreate, current_user: models.User = Depends(get_curren
     db.commit()
 
     return {"id": team_obj.id, "name": team_obj.name, "description": team_obj.description}
+
+
+@app.post("/teams/{team_id}/members", status_code=status.HTTP_201_CREATED)
+def add_team_member(team_id: int, request: AddMemberRequest, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Add a member to a team. Only the team leader can perform this action."""
+    # Check if the team exists
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    # Check if current user is the leader of the team
+    leader_membership = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.user_id == current_user.id,
+        models.TeamMember.role == "leader"
+    ).first()
+    if not leader_membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the team leader can add members",
+        )
+
+    # Find the user to add
+    user_to_add = db.query(models.User).filter(models.User.username == request.username).first()
+    if not user_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Check if user is already a member
+    existing_membership = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.user_id == user_to_add.id
+    ).first()
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a member of this team",
+        )
+
+    # Add the user as a member
+    member = models.TeamMember(team_id=team_id, user_id=user_to_add.id, role="member")
+    db.add(member)
+    db.commit()
+
+    return {"message": f"User {request.username} added to team {team.name} as member"}
