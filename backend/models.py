@@ -9,6 +9,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     email = Column(String(100), unique=True, index=True)
     password_hash = Column(String(255))
+    role = Column(String(50), default="user")
 
     # Relationships
     teams = relationship("TeamMember", back_populates="user")

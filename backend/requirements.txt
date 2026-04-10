@@ -7,3 +7,5 @@ python-jose[cryptography]
 python-multipart  # Para subir archivos en el futuro
 email-validator  # Requerido por Pydantic para EmailStr
 passlib[argon2]   # Alternativa para hashing, pero usaremos argon2-cffi directamente
+pytest
+httpx
