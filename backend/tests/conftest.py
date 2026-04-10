@@ -2,10 +2,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import engine, get_db
-from backend.main import app
-from backend import models
-from backend.auth import hash_password
+from database import engine, get_db
+from main import app
+import models
+from auth import hash_password
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

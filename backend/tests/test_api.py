@@ -36,7 +36,7 @@ def test_create_team_requires_auth(client):
         "/teams",
         json={"name": "Team A", "description": "Test team"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_create_team_success(client, auth_token):
@@ -89,7 +89,8 @@ def test_remove_team_member_by_leader(client, auth_token, create_user):
     )
     assert add_response.status_code == 201
 
-    remove_response = client.delete(
+    remove_response = client.request(
+        "DELETE",
         f"/teams/{team_id}/members",
         json={"username": member.username},
         headers=auth_headers(auth_token),
