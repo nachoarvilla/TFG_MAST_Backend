@@ -14,6 +14,11 @@ class TeamCreate(BaseModel):
     description: str
 
 
+class TeamUpdate(BaseModel):
+    name: str
+    description: str
+
+
 class AddMemberRequest(BaseModel):
     username: str
 
@@ -140,3 +145,55 @@ def list_team_members(team_id: int, current_user: models.User = Depends(get_curr
             result.append({"username": user.username, "role": membership.role})
 
     return {"team_id": team_id, "team_name": team.name, "members": result}
+
+
+@router.get("/teams/{team_id}", status_code=status.HTTP_200_OK)
+def get_team_information(team_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return team information for a member of that team."""
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    membership = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.user_id == current_user.id,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only team members can view team information")
+
+    members = []
+    for member in db.query(models.TeamMember).filter(models.TeamMember.team_id == team_id).all():
+        user = db.query(models.User).filter(models.User.id == member.user_id).first()
+        if user:
+            members.append({"username": user.username, "role": member.role})
+
+    return {"id": team.id, "name": team.name, "description": team.description, "members": members}
+
+
+@router.put("/teams/{team_id}", status_code=status.HTTP_200_OK)
+def update_team_information(team_id: int, team_update: TeamUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update team information. Only the team leader can perform this action."""
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+    leader_membership = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.user_id == current_user.id,
+        models.TeamMember.role == "leader"
+    ).first()
+    if not leader_membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the team leader can update the team")
+
+    if team_update.name != team.name:
+        existing_team = db.query(models.Team).filter(models.Team.name == team_update.name).first()
+        if existing_team:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A team with this name already exists")
+
+    team.name = team_update.name
+    team.description = team_update.description
+    db.commit()
+    db.refresh(team)
+
+    return {"id": team.id, "name": team.name, "description": team.description}
+
