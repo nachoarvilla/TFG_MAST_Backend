@@ -32,12 +32,12 @@ def get_user(user_id: int, current_user: models.User = Depends(get_current_user)
 @router.put("/users/{user_id}")
 def update_user(user_id: int, user_update: UserUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update user information. Only the user themselves or root can update."""
-    if current_user.id != user_id and current_user.role != "root":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can update this account")
-
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    if current_user.id != user_id and current_user.role != "root":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can update this account")
 
     if user_update.username and user_update.username != user.username:
         existing = db.query(models.User).filter(models.User.username == user_update.username).first()
@@ -62,12 +62,12 @@ def update_user(user_id: int, user_update: UserUpdate, current_user: models.User
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a user. Only the user themselves or root can delete."""
-    if current_user.id != user_id and current_user.role != "root":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can delete this account")
-
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    if current_user.id != user_id and current_user.role != "root":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can delete this account")
 
     db.delete(user)
     db.commit()

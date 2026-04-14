@@ -62,7 +62,7 @@ def list_projects(current_user: models.User = Depends(get_current_user), db: Ses
     ).all()
 
     # Get projects where user is member of an invited team
-    team_projects = db.query(models.Project).join(models.ProjectTeam).join(models.TeamMember).filter(
+    team_projects = db.query(models.Project).join(models.ProjectTeam).join(models.TeamMember, models.TeamMember.team_id == models.ProjectTeam.team_id).filter(
         models.TeamMember.user_id == current_user.id
     ).all()
 
@@ -87,7 +87,7 @@ def list_projects(current_user: models.User = Depends(get_current_user), db: Ses
                 role = user_access.role
             else:
                 # Check team access
-                team_access = db.query(models.ProjectTeam).join(models.TeamMember).filter(
+                team_access = db.query(models.ProjectTeam).join(models.TeamMember, models.TeamMember.team_id == models.ProjectTeam.team_id).filter(
                     models.ProjectTeam.project_id == project.id,
                     models.TeamMember.user_id == current_user.id
                 ).first()
@@ -134,7 +134,7 @@ def get_project(project_id: int, current_user: models.User = Depends(get_current
             user_role = user_access.role
         else:
             # Check team access
-            team_access = db.query(models.ProjectTeam).join(models.TeamMember).filter(
+            team_access = db.query(models.ProjectTeam).join(models.TeamMember, models.TeamMember.team_id == models.ProjectTeam.team_id).filter(
                 models.ProjectTeam.project_id == project.id,
                 models.TeamMember.user_id == current_user.id
             ).first()
