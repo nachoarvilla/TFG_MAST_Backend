@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -15,6 +15,7 @@ class User(Base):
     teams = relationship("TeamMember", back_populates="user")
     owned_projects = relationship("Project", back_populates="owner", foreign_keys="Project.owner_id")
     project_access = relationship("ProjectUser", back_populates="user")
+    uploaded_documents = relationship("Document", back_populates="uploader", cascade="all, delete-orphan")
 
 
 class Team(Base):
@@ -54,6 +55,18 @@ class Project(Base):
     owner = relationship("User", back_populates="owned_projects", foreign_keys=[owner_id])
     user_access = relationship("ProjectUser", back_populates="project", cascade="all, delete-orphan")
     team_access = relationship("ProjectTeam", back_populates="project", cascade="all, delete-orphan")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_path = Column(String(255), nullable=False)
+    total_pages = Column(Integer, nullable=False)
+    description = Column(Text, nullable=True)
+    uploader_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    uploader = relationship("User", back_populates="uploaded_documents")
 
 
 class ProjectUser(Base):

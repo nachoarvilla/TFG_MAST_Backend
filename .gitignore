@@ -33,3 +33,7 @@ ENV/
 
 # Docker
 .dockerignore
+
+# Uploads
+uploads/
+backend/uploads/
