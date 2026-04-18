@@ -1,25 +1,25 @@
 ```mermaid
 erDiagram
-    USER }o--o{ TEAM : "belongs_to (1:N - 0:N)"
-    USER ||--o{ PROJECT : "creates (1:1 - 0:N)"
-    TEAM ||--o{ PROJECT : "manages (1:1 - 0:N)"
-    USER ||--o{ DOCUMENT : "uploads (1:1 - 0:N)"
+    USER }|--o{ TEAM : "belongs_to"
+    USER ||--o{ PROJECT : "creates"
+    TEAM ||--o{ PROJECT : "manages"
+    USER ||--o{ DOCUMENT : "uploads"
 
-    PROJECT ||--o{ PROJECT_DOCUMENT : "includes (1:1 - 0:N)"
-    DOCUMENT ||--o{ PROJECT_DOCUMENT : "instantiated_in (1:1 - 0:N)"
+    PROJECT ||--o{ PROJECT_DOCUMENT : "includes"
+    DOCUMENT ||--o{ PROJECT_DOCUMENT : "instantiated_in"
     
-    SCHEMA ||--o{ SCHEMA_PUBLICATION : "has_versions (1:1 - 0:N)"
-    PROJECT }o--o{ SCHEMA_PUBLICATION : "uses_standards (0:N - 0:N)"
+    SCHEMA ||--|{ SCHEMA_PUBLICATION : "has_versions"
+    PROJECT }o--|{ SCHEMA_PUBLICATION : "uses_standards"
     
-    PROJECT_DOCUMENT ||--o{ REGION : "defines_areas (1:1 - 0:N)"
+    PROJECT_DOCUMENT ||--o{ REGION : "defines_areas"
     
-    REGION ||--o{ ANNOTATION : "tagged_with (1:1 - 0:N)"
-    SCHEMA_PUBLICATION ||--o{ ANNOTATION : "defines_types (1:1 - 0:N)"
+    REGION ||--o{ ANNOTATION : "tagged_with"
+    SCHEMA_PUBLICATION ||--o{ ANNOTATION : "defines_types"
     
-    PROJECT ||--o{ RELATION : "groups (1:1 - 0:N)"
-    RELATION ||--o{ RELATION_ACTOR : "has_participants (1:1 - 0:N)"
-    ANNOTATION ||--o{ RELATION_ACTOR : "plays_role (1:1 - 0:N)"
-    RELATION ||--o{ RELATION_ACTOR : "plays_role_recursively (1:1 - 0:N)"
+    PROJECT ||--o{ RELATION : "groups"
+    RELATION ||--o{ RELATION_ACTOR : "has_participants"
+    ANNOTATION ||--o{ RELATION_ACTOR : "plays_role"
+    RELATION ||--o{ RELATION_ACTOR : "plays_role_recursively"
 
     USER {
         int id PK
