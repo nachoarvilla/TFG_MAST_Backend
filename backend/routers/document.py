@@ -1,5 +1,6 @@
 from pathlib import Path
 from uuid import uuid4
+import shutil
 
 import fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -61,6 +62,7 @@ async def upload_document(
     document_dir = _ensure_uuid_directory(UPLOADS_DIR)
     pdf_path = document_dir / original_filename
     pdf_path.write_bytes(document_bytes)
+    stored_file_path = str(Path("uploads") / document_dir.name / original_filename)
 
     page_count = document.page_count
     page_files = []
@@ -78,7 +80,8 @@ async def upload_document(
     document.close()
 
     document_record = models.Document(
-        file_path=str(Path(document_dir.name) / original_filename),
+        name=original_filename,
+        file_path=stored_file_path,
         total_pages=page_count,
         description=description,
         uploader_id=current_user.id,
@@ -97,3 +100,33 @@ async def upload_document(
         "pages": page_files,
         "original_url": f"/uploads/{document_dir.name}/{original_filename}",
     }
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if document.uploader_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this document")
+
+    # Extract UUID from file_path
+    file_path = Path(document.file_path)
+    if file_path.parts[0] != "uploads":
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid file path")
+
+    uuid_dir_name = file_path.parent.name
+    full_dir_path = UPLOADS_DIR / uuid_dir_name
+
+    # Delete the directory
+    if full_dir_path.exists():
+        shutil.rmtree(full_dir_path)
+
+    # Delete the database record
+    db.delete(document)
+    db.commit()
