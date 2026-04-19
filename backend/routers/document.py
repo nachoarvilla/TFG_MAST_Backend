@@ -67,20 +67,12 @@ async def upload_document(
 
     for page_index in range(page_count):
         page = document.load_page(page_index)
-        pix = page.get_pixmap(alpha=False)
-        png_bytes = pix.tobytes("png")
-        jpg_bytes = pix.tobytes("jpg")
+        matrix = fitz.Matrix(2.0, 2.0)
+        pix = page.get_pixmap(matrix=matrix, alpha=False)
 
-        if len(png_bytes) <= len(jpg_bytes):
-            image_bytes = png_bytes
-            extension = "png"
-        else:
-            image_bytes = jpg_bytes
-            extension = "jpg"
-
-        image_name = f"page_{page_index + 1}.{extension}"
+        image_name = f"page_{page_index + 1}.jpg"
         image_path = document_dir / image_name
-        image_path.write_bytes(image_bytes)
+        pix.save(str(image_path), "jpeg", jpg_quality=90)
         page_files.append(image_name)
 
     document.close()
