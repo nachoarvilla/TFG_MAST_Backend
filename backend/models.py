@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from database import Base
 
 class User(Base):
@@ -66,7 +65,7 @@ class Document(Base):
     file_path = Column(String(255), nullable=False)
     total_pages = Column(Integer, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
     uploader_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     uploader = relationship("User", back_populates="uploaded_documents")
