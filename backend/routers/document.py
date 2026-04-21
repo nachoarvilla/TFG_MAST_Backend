@@ -4,6 +4,7 @@ import shutil
 
 import fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
@@ -14,6 +15,11 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+class DocumentUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
 
 
 def _ensure_uuid_directory(base_dir: Path) -> Path:
@@ -99,6 +105,93 @@ async def upload_document(
         "upload_directory": document_dir.name,
         "pages": page_files,
         "original_url": f"/uploads/{document_dir.name}/{original_filename}",
+    }
+
+
+@router.get("/{document_id}")
+async def get_document(
+    document_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Extract UUID from file_path
+    file_path_parts = document.file_path.split('/')
+    if len(file_path_parts) < 2 or file_path_parts[0] != "uploads":
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid file path")
+
+    uuid = file_path_parts[1]
+    base_url = f"http://localhost:8000/uploads/{uuid}/"
+
+    return {
+        "id": document.id,
+        "name": document.name,
+        "total_pages": document.total_pages,
+        "uploader": document.uploader.username,
+        "uploader_id": document.uploader_id,
+        "created_at": document.created_at.isoformat(),
+        "base_url": base_url,
+    }
+
+
+@router.put("/{document_id}")
+async def update_document(
+    document_id: int,
+    update_data: DocumentUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if document.uploader_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this document")
+
+    # Check if name is being updated
+    if update_data.name is not None and update_data.name != document.name:
+        # Extract current path
+        file_path_parts = document.file_path.split('/')
+        if len(file_path_parts) < 3 or file_path_parts[0] != "uploads":
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid file path")
+
+        uuid = file_path_parts[1]
+        old_name = file_path_parts[2]
+        new_name = update_data.name
+
+        # Ensure new name ends with .pdf
+        if not new_name.lower().endswith('.pdf'):
+            new_name += '.pdf'
+
+        # Build paths
+        dir_path = UPLOADS_DIR / uuid
+        old_file_path = dir_path / old_name
+        new_file_path = dir_path / new_name
+
+        # Rename file
+        if old_file_path.exists():
+            old_file_path.rename(new_file_path)
+
+        # Update file_path in DB
+        document.file_path = f"uploads/{uuid}/{new_name}"
+
+    # Update other fields
+    if update_data.name is not None:
+        document.name = update_data.name
+    if update_data.description is not None:
+        document.description = update_data.description
+
+    db.commit()
+    db.refresh(document)
+
+    return {
+        "id": document.id,
+        "name": document.name,
+        "description": document.description,
+        "file_path": document.file_path,
     }
 
 
