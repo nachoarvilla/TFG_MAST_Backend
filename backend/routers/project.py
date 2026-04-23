@@ -24,6 +24,11 @@ class AddUserRequest(BaseModel):
     role: str
 
 
+class AddTeamRequest(BaseModel):
+    team_name: str
+    role: str
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(project: ProjectCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Create a new project. The creator becomes the owner."""
@@ -301,3 +306,70 @@ def delete_project(project_id: int, current_user: models.User = Depends(get_curr
     db.commit()
 
     return {"message": f"Project '{project.name}' deleted successfully"}
+
+
+@router.post("/{project_id}/teams", status_code=status.HTTP_201_CREATED)
+def add_team_to_project(
+    project_id: int,
+    request: AddTeamRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a team to a project. Only the owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can add teams",
+        )
+
+    # Validate role
+    if request.role not in ("collaborator", "viewer"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'collaborator' or 'viewer'",
+        )
+
+    # Find the team to add
+    team_to_add = db.query(models.Team).filter(models.Team.name == request.team_name).first()
+    if not team_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    # Check if team is already a member
+    existing_membership = db.query(models.ProjectTeam).filter(
+        models.ProjectTeam.project_id == project_id,
+        models.ProjectTeam.team_id == team_to_add.id
+    ).first()
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Team is already a member of this project",
+        )
+
+    # Add the team to the project
+    project_team = models.ProjectTeam(
+        project_id=project_id,
+        team_id=team_to_add.id,
+        role=request.role
+    )
+    db.add(project_team)
+    db.commit()
+    db.refresh(project_team)
+
+    return {
+        "message": f"Team {request.team_name} added to project {project.name} as {request.role}",
+        "team_id": team_to_add.id,
+        "team_name": team_to_add.name,
+        "role": request.role
+    }
