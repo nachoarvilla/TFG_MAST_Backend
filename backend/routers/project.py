@@ -19,6 +19,11 @@ class ProjectUpdate(BaseModel):
     is_private: bool = True
 
 
+class AddUserRequest(BaseModel):
+    username: str
+    role: str
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(project: ProjectCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Create a new project. The creator becomes the owner."""
@@ -47,6 +52,80 @@ def create_project(project: ProjectCreate, current_user: models.User = Depends(g
         "description": project_obj.description,
         "is_private": project_obj.is_private,
         "owner_id": project_obj.owner_id
+    }
+
+
+@router.post("/{project_id}/users", status_code=status.HTTP_201_CREATED)
+def add_user_to_project(
+    project_id: int,
+    request: AddUserRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a user to a project. Only the owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can add users",
+        )
+
+    # Validate role
+    if request.role not in ("collaborator", "viewer"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'collaborator' or 'viewer'",
+        )
+
+    # Find the user to add
+    user_to_add = db.query(models.User).filter(models.User.username == request.username).first()
+    if not user_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Check if user is the owner
+    if user_to_add.id == project.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot add the project owner as a member",
+        )
+
+    # Check if user is already a member
+    existing_membership = db.query(models.ProjectUser).filter(
+        models.ProjectUser.project_id == project_id,
+        models.ProjectUser.user_id == user_to_add.id
+    ).first()
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a member of this project",
+        )
+
+    # Add the user to the project
+    project_user = models.ProjectUser(
+        project_id=project_id,
+        user_id=user_to_add.id,
+        role=request.role
+    )
+    db.add(project_user)
+    db.commit()
+    db.refresh(project_user)
+
+    return {
+        "message": f"User {request.username} added to project {project.name} as {request.role}",
+        "user_id": user_to_add.id,
+        "username": user_to_add.username,
+        "role": request.role
     }
 
 
