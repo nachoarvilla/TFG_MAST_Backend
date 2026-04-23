@@ -123,9 +123,6 @@ def add_user_to_project(
 
     return {
         "message": f"User {request.username} added to project {project.name} as {request.role}",
-        "user_id": user_to_add.id,
-        "username": user_to_add.username,
-        "role": request.role
     }
 
 
