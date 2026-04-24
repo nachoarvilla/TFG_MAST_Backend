@@ -51,6 +51,15 @@ def create_project(project: ProjectCreate, current_user: models.User = Depends(g
     db.commit()
     db.refresh(project_obj)
 
+    # Add the owner to project_users with role "owner"
+    project_user = models.ProjectUser(
+        project_id=project_obj.id,
+        user_id=current_user.id,
+        role="owner"
+    )
+    db.add(project_user)
+    db.commit()
+
     return {
         "id": project_obj.id,
         "name": project_obj.name,
