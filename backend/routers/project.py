@@ -373,3 +373,58 @@ def add_team_to_project(
         "team_name": team_to_add.name,
         "role": request.role
     }
+
+
+@router.get("/user/{user_id}/projects")
+def get_user_projects(
+    user_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all projects where a user is involved and their role."""
+    # Check if user exists
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    result = []
+
+    # Get projects where user is owner
+    owned_projects = db.query(models.Project).filter(models.Project.owner_id == user_id).all()
+    for project in owned_projects:
+        result.append({
+            "project_id": project.id,
+            "project_name": project.name,
+            "role": "owner"
+        })
+
+    # Get projects where user is directly invited
+    user_memberships = db.query(models.ProjectUser).filter(models.ProjectUser.user_id == user_id).all()
+    for membership in user_memberships:
+        project = db.query(models.Project).filter(models.Project.id == membership.project_id).first()
+        if project:
+            result.append({
+                "project_id": project.id,
+                "project_name": project.name,
+                "role": membership.role
+            })
+
+    # Get projects where user is member of a team
+    team_memberships = db.query(models.TeamMember).filter(models.TeamMember.user_id == user_id).all()
+    for team_membership in team_memberships:
+        project_teams = db.query(models.ProjectTeam).filter(models.ProjectTeam.team_id == team_membership.team_id).all()
+        for pt in project_teams:
+            project = db.query(models.Project).filter(models.Project.id == pt.project_id).first()
+            if project:
+                # Check if not already added
+                if not any(p["project_id"] == project.id for p in result):
+                    result.append({
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "role": pt.role
+                    })
+
+    return {"user_id": user_id, "username": user.username, "projects": result}
