@@ -197,3 +197,40 @@ def update_team_information(team_id: int, team_update: TeamUpdate, current_user:
 
     return {"id": team.id, "name": team.name, "description": team.description}
 
+
+@router.get("/teams/{team_id}/projects")
+def get_team_projects(
+    team_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all projects where a team is involved and their role."""
+    # Check if team exists
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found",
+        )
+
+    result = []
+
+    # Get all project_teams for this team
+    project_teams = db.query(models.ProjectTeam).filter(models.ProjectTeam.team_id == team_id).all()
+
+    for pt in project_teams:
+        project = db.query(models.Project).filter(models.Project.id == pt.project_id).first()
+        if project:
+            result.append({
+                "project_id": project.id,
+                "project_name": project.name,
+                "role": pt.role
+            })
+
+    return {
+        "team_id": team_id,
+        "team_name": team.name,
+        "team_description": team.description,
+        "projects": result
+    }
+
