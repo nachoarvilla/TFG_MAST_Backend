@@ -210,6 +210,60 @@ def update_user_role(
     }
 
 
+@router.delete("/{project_id}/users/{user_id}", status_code=status.HTTP_200_OK)
+def remove_user_from_project(
+    project_id: int,
+    user_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a user from a project. Only the owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can remove users",
+        )
+
+    # Find the user membership
+    project_user = db.query(models.ProjectUser).filter(
+        models.ProjectUser.project_id == project_id,
+        models.ProjectUser.user_id == user_id
+    ).first()
+    if not project_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this project",
+        )
+
+    # Check if user is the owner
+    if project_user.user_id == project.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove the project owner from the project",
+        )
+
+    # Get username before deleting
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    username = user.username if user else "Unknown"
+
+    # Delete the user from the project
+    db.delete(project_user)
+    db.commit()
+
+    return {
+        "message": f"User {username} removed from project {project.name}",
+    }
+
+
 @router.get("")
 def list_projects(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all projects where the user has access (owner or invited)."""
