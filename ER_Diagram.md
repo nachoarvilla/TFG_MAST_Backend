@@ -1,20 +1,21 @@
 ```mermaid
 erDiagram
-    USER }|--o{ TEAM : "belongs_to"
+    USER }|--o{ TEAM : "belongs"
     USER ||--o{ PROJECT : "creates"
-    TEAM ||--o{ PROJECT : "manages"
+    USER }|--o{ PROJECT : "collaborates"
+    TEAM ||--o{ PROJECT : "collaborates"
     USER ||--o{ DOCUMENT : "uploads"
 
     PROJECT ||--o{ PROJECT_DOCUMENT : "includes"
-    DOCUMENT ||--o{ PROJECT_DOCUMENT : "instantiated_in"
+    DOCUMENT ||--o{ PROJECT_DOCUMENT : "instantiates"
     
     SCHEMA ||--|{ SCHEMA_PUBLICATION : "has_versions"
     PROJECT }o--|{ SCHEMA_PUBLICATION : "uses_standards"
     
-    PROJECT_DOCUMENT ||--o{ REGION : "defines_areas"
+    PROJECT_DOCUMENT ||--o{ REGION : "includes"
     
-    REGION ||--o{ ANNOTATION : "tagged_with"
-    SCHEMA_PUBLICATION ||--o{ ANNOTATION : "defines_types"
+    REGION ||--o{ ANNOTATION : "annotates"
+    SCHEMA_PUBLICATION ||--o{ ANNOTATION : "defines"
     
     PROJECT ||--o{ RELATION : "groups"
     RELATION ||--o{ RELATION_ACTOR : "has_participants"
