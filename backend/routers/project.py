@@ -24,6 +24,10 @@ class AddUserRequest(BaseModel):
     role: str
 
 
+class UpdateUserRoleRequest(BaseModel):
+    role: str
+
+
 class AddTeamRequest(BaseModel):
     team_name: str
     role: str
@@ -137,6 +141,72 @@ def add_user_to_project(
 
     return {
         "message": f"User {request.username} added to project {project.name} as {request.role}",
+    }
+
+
+@router.put("/{project_id}/users/{user_id}")
+def update_user_role(
+    project_id: int,
+    user_id: int,
+    request: UpdateUserRoleRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a user's role in a project. Only the owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can update user roles",
+        )
+
+    # Validate role
+    if request.role not in ("collaborator", "viewer"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'collaborator' or 'viewer'",
+        )
+
+    # Find the user membership
+    project_user = db.query(models.ProjectUser).filter(
+        models.ProjectUser.project_id == project_id,
+        models.ProjectUser.user_id == user_id
+    ).first()
+    if not project_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this project",
+        )
+
+    # Check if user is the owner
+    if project_user.user_id == project.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the project owner's role",
+        )
+
+    # Update the role
+    old_role = project_user.role
+    project_user.role = request.role
+    db.commit()
+    db.refresh(project_user)
+
+    # Get username
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    return {
+        "message": f"User {user.username} role changed from {old_role} to {request.role}",
+        "user_id": user_id,
+        "username": user.username,
+        "role": request.role
     }
 
 
