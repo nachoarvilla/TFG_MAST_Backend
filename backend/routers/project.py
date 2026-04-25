@@ -28,6 +28,10 @@ class UpdateUserRoleRequest(BaseModel):
     role: str
 
 
+class UpdateTeamRoleRequest(BaseModel):
+    role: str
+
+
 class AddTeamRequest(BaseModel):
     team_name: str
     role: str
@@ -552,3 +556,62 @@ def get_user_projects(
                     })
 
     return {"user_id": user_id, "username": user.username, "projects": result}
+
+
+@router.put("/{project_id}/teams/{team_id}")
+def update_team_role(
+    project_id: int,
+    team_id: int,
+    request: UpdateTeamRoleRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a team's role in a project. Only the owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can update team roles",
+        )
+
+    # Validate role
+    if request.role not in ("collaborator", "viewer"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'collaborator' or 'viewer'",
+        )
+
+    # Find the team membership
+    project_team = db.query(models.ProjectTeam).filter(
+        models.ProjectTeam.project_id == project_id,
+        models.ProjectTeam.team_id == team_id
+    ).first()
+    if not project_team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team is not a member of this project",
+        )
+
+    # Update the role
+    old_role = project_team.role
+    project_team.role = request.role
+    db.commit()
+    db.refresh(project_team)
+
+    # Get team name
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+
+    return {
+        "message": f"Team {team.name} role changed from {old_role} to {request.role}",
+        "team_id": team_id,
+        "team_name": team.name,
+        "role": request.role
+    }
