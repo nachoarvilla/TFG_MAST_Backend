@@ -466,6 +466,237 @@ def test_get_user_projects_as_different_user(client, auth_token, create_user):
     assert "projects" in get_response.json()
 
 
+# ========== Project User UPDATE Tests ==========
+
+
+def test_update_user_role_in_project_by_owner(client, auth_token, create_user):
+    # Create project and add user
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Update Role", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("updateuser1", "updateuser1@example.com", "password123")
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "updateuser1", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Update role
+    update_response = client.put(
+        f"/projects/{project_id}/users/{user_to_add.id}",
+        json={"role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert update_response.status_code == 200
+    assert "collaborator" in update_response.json()["message"]
+
+
+def test_update_user_role_not_owner(client, auth_token, create_user):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Update Not Owner", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("notowneruser", "notowneruser@example.com", "password123")
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "notowneruser", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Try to update as non-owner
+    other_user = create_user("outsiderupdate", "outsiderupdate@example.com", "password123")
+    other_login = client.post(
+        "/login",
+        json={"username_or_email": "outsiderupdate", "password": "password123"},
+    )
+    other_token = other_login.json()["access_token"]
+
+    update_response = client.put(
+        f"/projects/{project_id}/users/{user_to_add.id}",
+        json={"role": "collaborator"},
+        headers=auth_headers(other_token),
+    )
+    assert update_response.status_code == 403
+    assert "Only the project owner can update user roles" in update_response.json()["detail"]
+
+
+def test_update_user_role_invalid_role(client, auth_token, create_user):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Invalid Role Update", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("invalidroleuser", "invalidroleuser@example.com", "password123")
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "invalidroleuser", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+
+    update_response = client.put(
+        f"/projects/{project_id}/users/{user_to_add.id}",
+        json={"role": "admin"},
+        headers=auth_headers(auth_token),
+    )
+    assert update_response.status_code == 400
+    assert "collaborator" in update_response.json()["detail"].lower() and "viewer" in update_response.json()["detail"].lower()
+
+
+def test_update_user_role_user_not_member(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Not Member", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    update_response = client.put(
+        f"/projects/{project_id}/users/9999",
+        json={"role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert update_response.status_code == 404
+    assert "not a member" in update_response.json()["detail"]
+
+
+def test_update_owner_role_fails(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Owner Role Update", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    update_response = client.put(
+        f"/projects/{project_id}/users/{owner_id}",
+        json={"role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+    assert update_response.status_code == 400
+    assert "Cannot change the project owner's role" in update_response.json()["detail"]
+
+
+def test_update_user_role_project_not_found(client, auth_token):
+    update_response = client.put(
+        "/projects/9999/users/1",
+        json={"role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert update_response.status_code == 404
+    assert "Project not found" in update_response.json()["detail"]
+
+
+# ========== Project User DELETE Tests ==========
+
+
+def test_remove_user_from_project_by_owner(client, auth_token, create_user):
+    # Create project and add user
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove User", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("removeuser1", "removeuser1@example.com", "password123")
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "removeuser1", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Remove user
+    delete_response = client.delete(
+        f"/projects/{project_id}/users/{user_to_add.id}",
+        headers=auth_headers(auth_token),
+    )
+    assert delete_response.status_code == 200
+    assert "removed from project" in delete_response.json()["message"]
+
+
+def test_remove_user_from_project_not_owner(client, auth_token, create_user):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Not Owner", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("removeuser2", "removeuser2@example.com", "password123")
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "removeuser2", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Try to remove as non-owner
+    other_user = create_user("outsiderremove", "outsiderremove@example.com", "password123")
+    other_login = client.post(
+        "/login",
+        json={"username_or_email": "outsiderremove", "password": "password123"},
+    )
+    other_token = other_login.json()["access_token"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/users/{user_to_add.id}",
+        headers=auth_headers(other_token),
+    )
+    assert delete_response.status_code == 403
+    assert "Only the project owner can remove users" in delete_response.json()["detail"]
+
+
+def test_remove_user_not_member(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Not Member", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/users/9999",
+        headers=auth_headers(auth_token),
+    )
+    assert delete_response.status_code == 404
+    assert "not a member" in delete_response.json()["detail"]
+
+
+def test_remove_owner_from_project_fails(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Owner", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/users/{owner_id}",
+        headers=auth_headers(auth_token),
+    )
+    assert delete_response.status_code == 400
+    assert "Cannot remove the project owner" in delete_response.json()["detail"]
+
+
+def test_remove_user_project_not_found(client, auth_token):
+    delete_response = client.delete(
+        "/projects/9999/users/1",
+        headers=auth_headers(auth_token),
+    )
+    assert delete_response.status_code == 404
+    assert "Project not found" in delete_response.json()["detail"]
+
+
 def test_delete_project_not_found(client, auth_token):
     response = client.delete(
         "/projects/9999",
