@@ -401,15 +401,6 @@ def get_user_projects(
 
     result = []
 
-    # Get projects where user is owner
-    owned_projects = db.query(models.Project).filter(models.Project.owner_id == user_id).all()
-    for project in owned_projects:
-        result.append({
-            "project_id": project.id,
-            "project_name": project.name,
-            "role": "owner"
-        })
-
     # Get projects where user is directly invited
     user_memberships = db.query(models.ProjectUser).filter(models.ProjectUser.user_id == user_id).all()
     for membership in user_memberships:
