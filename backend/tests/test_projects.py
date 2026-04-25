@@ -257,6 +257,215 @@ def test_delete_project_not_owner(client, auth_token, create_user):
     assert delete_response.status_code == 403
 
 
+# ========== Project User CREATE Tests ==========
+
+
+def test_add_user_to_project_by_owner(client, auth_token, create_user):
+    # Create project
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Add User", "description": "Test adding user", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    # Create another user
+    user_to_add = create_user("newuser1", "newuser1@example.com", "password123")
+
+    # Add user to project
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "newuser1", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 201
+    assert "newuser1" in add_response.json()["message"]
+
+
+def test_add_user_to_project_not_owner(client, auth_token, create_user):
+    # Create project
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Not Owner", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    # Create another user and try to add
+    other_user = create_user("otheruser1", "otheruser1@example.com", "password123")
+    other_login = client.post(
+        "/login",
+        json={"username_or_email": "otheruser1", "password": "password123"},
+    )
+    other_token = other_login.json()["access_token"]
+
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "otheruser1", "role": "viewer"},
+        headers=auth_headers(other_token),
+    )
+    assert add_response.status_code == 403
+    assert "Only the project owner can add users" in add_response.json()["detail"]
+
+
+def test_add_user_to_project_user_not_found(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Fake User", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "nonexistentuser", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 404
+    assert "User not found" in add_response.json()["detail"]
+
+
+def test_add_user_to_project_invalid_role(client, auth_token, create_user):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Invalid Role", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("userinvalidrole", "userinvalidrole@example.com", "password123")
+
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "userinvalidrole", "role": "admin"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 400
+    assert "collaborator" in add_response.json()["detail"].lower() and "viewer" in add_response.json()["detail"].lower()
+
+
+def test_add_user_to_project_already_member(client, auth_token, create_user, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Already Member", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    user_to_add = create_user("alreadyuser", "alreadyuser@example.com", "password123")
+
+    # Add first time
+    client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "alreadyuser", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Try to add again
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "alreadyuser", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 400
+    assert "already a member" in add_response.json()["detail"]
+
+
+def test_add_owner_as_member_fails(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Owner Add", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    # Get the owner username
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": "testuser", "password": "password123"},
+    )
+    # The auth_token belongs to testuser
+
+    add_response = client.post(
+        f"/projects/{project_id}/users",
+        json={"username": "testuser", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 400
+    assert "Cannot add the project owner" in add_response.json()["detail"]
+
+
+def test_add_user_to_project_not_found(client, auth_token):
+    add_response = client.post(
+        "/projects/9999/users",
+        json={"username": "someuser", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 404
+    assert "Project not found" in add_response.json()["detail"]
+
+
+# ========== Project User READ Tests ==========
+
+
+def test_get_user_projects(client, auth_token, create_user, db_session):
+    # Create project
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Read Test", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    # Get user projects using the actual owner_id from the project
+    get_response = client.get(
+        f"/projects/user/{owner_id}/projects",
+        headers=auth_headers(auth_token),
+    )
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert "projects" in data
+    # Should have at least the project we just created
+    project_names = [p["project_name"] for p in data["projects"]]
+    assert "Project Read Test" in project_names
+
+
+def test_get_user_projects_user_not_found(client, auth_token):
+    get_response = client.get(
+        "/projects/user/9999/projects",
+        headers=auth_headers(auth_token),
+    )
+    assert get_response.status_code == 404
+    assert "User not found" in get_response.json()["detail"]
+
+
+def test_get_user_projects_as_different_user(client, auth_token, create_user):
+    # Create project as first user
+    client.post(
+        "/projects",
+        json={"name": "Project Different User", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+
+    # Create second user
+    second_user = create_user("seconduserproj", "seconduserproj@example.com", "password123")
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": "seconduserproj", "password": "password123"},
+    )
+    second_token = login_response.json()["access_token"]
+
+    # Get first user's projects as second user
+    get_response = client.get(
+        "/projects/user/1/projects",
+        headers=auth_headers(second_token),
+    )
+    assert get_response.status_code == 200
+    # Second user can see first user's projects
+    assert "projects" in get_response.json()
+
+
 def test_delete_project_not_found(client, auth_token):
     response = client.delete(
         "/projects/9999",
