@@ -743,3 +743,148 @@ def test_list_projects_returns_owned_and_team_access(client, auth_token, create_
     assert list_response.status_code == 200
     projects = list_response.json()["projects"]
     assert any(project["id"] == project_id for project in projects)
+
+
+# ========== Project Team CREATE Tests ==========
+
+
+def test_add_team_to_project_by_owner(client, auth_token):
+    # Create project
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Add Team", "description": "Test adding team", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    # Create team
+    team_response = client.post(
+        "/teams",
+        json={"name": "Team Alpha", "description": "Test team"},
+        headers=auth_headers(auth_token),
+    )
+    team_id = team_response.json()["id"]
+
+    # Add team to project
+    add_response = client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Team Alpha", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 201
+    assert "Team Alpha" in add_response.json()["message"]
+    assert add_response.json()["role"] == "collaborator"
+
+
+def test_add_team_to_project_not_owner(client, auth_token, create_user):
+    # Create project
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Team Not Owner", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    # Create team
+    client.post(
+        "/teams",
+        json={"name": "Team Beta", "description": "Test team"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Try to add as non-owner
+    other_user = create_user("outsiderteam", "outsiderteam@example.com", "password123")
+    other_login = client.post(
+        "/login",
+        json={"username_or_email": "outsiderteam", "password": "password123"},
+    )
+    other_token = other_login.json()["access_token"]
+
+    add_response = client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Team Beta", "role": "viewer"},
+        headers=auth_headers(other_token),
+    )
+    assert add_response.status_code == 403
+    assert "Only the project owner can add teams" in add_response.json()["detail"]
+
+
+def test_add_team_to_project_team_not_found(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Fake Team", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    add_response = client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Nonexistent Team", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 404
+    assert "Team not found" in add_response.json()["detail"]
+
+
+def test_add_team_to_project_invalid_role(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Team Invalid Role", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    client.post(
+        "/teams",
+        json={"name": "Team Gamma", "description": "Test team"},
+        headers=auth_headers(auth_token),
+    )
+
+    add_response = client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Team Gamma", "role": "admin"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 400
+    assert "collaborator" in add_response.json()["detail"].lower() and "viewer" in add_response.json()["detail"].lower()
+
+
+def test_add_team_to_project_already_member(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Team Already Member", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    client.post(
+        "/teams",
+        json={"name": "Team Delta", "description": "Test team"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Add first time
+    client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Team Delta", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+
+    # Try to add again
+    add_response = client.post(
+        f"/projects/{project_id}/teams",
+        json={"team_name": "Team Delta", "role": "viewer"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 400
+    assert "already a member" in add_response.json()["detail"]
+
+
+def test_add_team_to_project_not_found(client, auth_token):
+    add_response = client.post(
+        "/projects/9999/teams",
+        json={"team_name": "Some Team", "role": "collaborator"},
+        headers=auth_headers(auth_token),
+    )
+    assert add_response.status_code == 404
+    assert "Project not found" in add_response.json()["detail"]
