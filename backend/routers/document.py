@@ -13,7 +13,7 @@ from database import get_db
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
+UPLOADS_DIR = Path(__file__).resolve().parents[1].parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -124,7 +124,7 @@ async def get_document(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid file path")
 
     uuid = file_path_parts[1]
-    base_url = f"http://localhost:8000/uploads/{uuid}/"
+    base_url = f"http://localhost:8010/{uuid}/"
 
     return {
         "id": document.id,
