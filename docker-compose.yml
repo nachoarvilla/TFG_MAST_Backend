@@ -26,6 +26,15 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app  # Allows code changes to be reflected instantly
+      - ./uploads:/uploads
+
+  files_server:
+    image: nginx:alpine
+    container_name: mast_files
+    ports:
+      - "8010:80" 
+    volumes:
+      - ./uploads:/usr/share/nginx/html:ro
 
 volumes:
   db_data:
