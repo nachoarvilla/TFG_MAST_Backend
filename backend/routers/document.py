@@ -72,6 +72,10 @@ async def upload_document(
 
     page_count = document.page_count
     page_files = []
+    thumbnail_files = []
+
+    thumbnails_dir = document_dir / "thumbnails"
+    thumbnails_dir.mkdir(parents=True, exist_ok=False)
 
     for page_index in range(page_count):
         page = document.load_page(page_index)
@@ -82,6 +86,12 @@ async def upload_document(
         image_path = document_dir / image_name
         pix.save(str(image_path), "jpeg", jpg_quality=90)
         page_files.append(image_name)
+
+        thumbnail_matrix = fitz.Matrix(0.3, 0.3)
+        thumbnail_pix = page.get_pixmap(matrix=thumbnail_matrix, alpha=False)
+        thumbnail_path = thumbnails_dir / image_name
+        thumbnail_pix.save(str(thumbnail_path), "jpeg", jpg_quality=75)
+        thumbnail_files.append(image_name)
 
     document.close()
 
@@ -104,6 +114,7 @@ async def upload_document(
         "description": description,
         "upload_directory": document_dir.name,
         "pages": page_files,
+        "thumbnails": thumbnail_files,
         "original_url": f"/uploads/{document_dir.name}/{original_filename}",
     }
 
