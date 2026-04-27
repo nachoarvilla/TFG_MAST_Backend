@@ -55,6 +55,7 @@ class Project(Base):
     owner = relationship("User", back_populates="owned_projects", foreign_keys=[owner_id])
     user_access = relationship("ProjectUser", back_populates="project", cascade="all, delete-orphan")
     team_access = relationship("ProjectTeam", back_populates="project", cascade="all, delete-orphan")
+    documents = relationship("ProjectDocument", back_populates="project", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -69,6 +70,7 @@ class Document(Base):
     uploader_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     uploader = relationship("User", back_populates="uploaded_documents")
+    projects = relationship("ProjectDocument", back_populates="document")
 
 
 class ProjectUser(Base):
@@ -93,3 +95,14 @@ class ProjectTeam(Base):
     # Relationships
     project = relationship("Project", back_populates="team_access")
     team = relationship("Team", back_populates="project_access")
+
+
+class ProjectDocument(Base):
+    __tablename__ = "project_documents"
+
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True)
+
+    # Relationships
+    project = relationship("Project", back_populates="documents")
+    document = relationship("Document", back_populates="projects")
