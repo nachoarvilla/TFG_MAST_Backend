@@ -79,12 +79,12 @@ async def upload_document(
 
     for page_index in range(page_count):
         page = document.load_page(page_index)
-        matrix = fitz.Matrix(2.0, 2.0)
+        matrix = fitz.Matrix(1.8, 1.8)
         pix = page.get_pixmap(matrix=matrix, alpha=False)
 
         image_name = f"page_{page_index + 1}.jpg"
         image_path = document_dir / image_name
-        pix.save(str(image_path), "jpeg", jpg_quality=90)
+        pix.save(str(image_path), "jpeg", jpg_quality=80)
         page_files.append(image_name)
 
         thumbnail_matrix = fitz.Matrix(0.3, 0.3)
