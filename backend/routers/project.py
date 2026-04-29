@@ -569,6 +569,33 @@ def add_document_to_project(
     }
 
 
+@router.get("/{project_id}/documents")
+def list_project_documents(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List documents added to a project. Any authenticated user can perform this action."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    documents = db.query(models.Document).join(models.ProjectDocument).filter(
+        models.ProjectDocument.project_id == project_id
+    ).all()
+
+    return {
+        "project_id": project_id,
+        "documents": [
+            {"id": document.id, "name": document.name}
+            for document in documents
+        ],
+    }
+
+
 @router.get("/user/{user_id}/projects")
 def get_user_projects(
     user_id: int,
