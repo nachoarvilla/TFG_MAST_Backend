@@ -37,6 +37,10 @@ class AddTeamRequest(BaseModel):
     role: str
 
 
+class AddDocumentRequest(BaseModel):
+    document_id: int
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(project: ProjectCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Create a new project. The creator becomes the owner."""
@@ -509,6 +513,59 @@ def add_team_to_project(
         "team_id": team_to_add.id,
         "team_name": team_to_add.name,
         "role": request.role
+    }
+
+
+@router.post("/{project_id}/documents", status_code=status.HTTP_201_CREATED)
+def add_document_to_project(
+    project_id: int,
+    request: AddDocumentRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add an existing document to a project. Only the owner can perform this action."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can add documents",
+        )
+
+    document = db.query(models.Document).filter(models.Document.id == request.document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    existing_document = db.query(models.ProjectDocument).filter(
+        models.ProjectDocument.project_id == project_id,
+        models.ProjectDocument.document_id == request.document_id
+    ).first()
+    if existing_document:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document is already added to this project",
+        )
+
+    project_document = models.ProjectDocument(
+        project_id=project_id,
+        document_id=request.document_id,
+    )
+    db.add(project_document)
+    db.commit()
+
+    return {
+        "message": f"Document {document.name} added to project {project.name}",
+        "project_id": project_id,
+        "document_id": request.document_id,
+        "document_name": document.name,
     }
 
 
