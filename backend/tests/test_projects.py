@@ -1129,3 +1129,130 @@ def test_list_project_documents_project_not_found(client, auth_token):
 
     assert list_response.status_code == 404
     assert "Project not found" in list_response.json()["detail"]
+
+
+# ========== Project Document DELETE Tests ==========
+
+
+def test_remove_document_from_project_by_owner(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Document", "description": "Test removing document", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="remove-document.pdf",
+        file_path="uploads/test/remove-document.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}",
+        headers=auth_headers(auth_token),
+    )
+
+    assert delete_response.status_code == 200
+    assert "removed from project" in delete_response.json()["message"]
+
+    list_response = client.get(
+        f"/projects/{project_id}/documents",
+        headers=auth_headers(auth_token),
+    )
+    assert list_response.json()["documents"] == []
+
+
+def test_remove_document_from_project_not_owner(client, auth_token, create_user, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Document Forbidden", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="remove-forbidden.pdf",
+        file_path="uploads/test/remove-forbidden.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    outsider = create_user("document_remover", "document_remover@example.com", "password123")
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": outsider.username, "password": "password123"},
+    )
+    outsider_token = login_response.json()["access_token"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}",
+        headers=auth_headers(outsider_token),
+    )
+
+    assert delete_response.status_code == 403
+    assert "Only the project owner can remove documents" in delete_response.json()["detail"]
+
+
+def test_remove_document_from_project_not_added(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Document Missing", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="not-added.pdf",
+        file_path="uploads/test/not-added.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}",
+        headers=auth_headers(auth_token),
+    )
+
+    assert delete_response.status_code == 404
+    assert "Document is not added to this project" in delete_response.json()["detail"]
+
+
+def test_remove_document_from_project_project_not_found(client, auth_token):
+    delete_response = client.delete(
+        "/projects/9999/documents/1",
+        headers=auth_headers(auth_token),
+    )
+
+    assert delete_response.status_code == 404
+    assert "Project not found" in delete_response.json()["detail"]
+
+
+def test_remove_document_from_project_requires_auth(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Remove Document Auth", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    delete_response = client.delete(f"/projects/{project_id}/documents/1")
+
+    assert delete_response.status_code == 401
