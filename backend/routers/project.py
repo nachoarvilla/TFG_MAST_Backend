@@ -596,6 +596,47 @@ def list_project_documents(
     }
 
 
+@router.delete("/{project_id}/documents/{document_id}", status_code=status.HTTP_200_OK)
+def remove_document_from_project(
+    project_id: int,
+    document_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a document from a project. Only the owner can perform this action."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can remove documents",
+        )
+
+    project_document = db.query(models.ProjectDocument).filter(
+        models.ProjectDocument.project_id == project_id,
+        models.ProjectDocument.document_id == document_id
+    ).first()
+    if not project_document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document is not added to this project",
+        )
+
+    db.delete(project_document)
+    db.commit()
+
+    return {
+        "message": f"Document {document_id} removed from project {project.name}",
+        "project_id": project_id,
+        "document_id": document_id,
+    }
+
+
 @router.get("/user/{user_id}/projects")
 def get_user_projects(
     user_id: int,
