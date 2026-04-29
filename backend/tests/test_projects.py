@@ -1022,3 +1022,110 @@ def test_add_document_to_project_project_not_found(client, auth_token):
 
     assert add_response.status_code == 404
     assert "Project not found" in add_response.json()["detail"]
+
+
+# ========== Project Document READ Tests ==========
+
+
+def test_list_project_documents_returns_added_documents(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project List Documents", "description": "Test listing documents", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    first_document = models.Document(
+        name="first-document.pdf",
+        file_path="uploads/test/first-document.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    second_document = models.Document(
+        name="second-document.pdf",
+        file_path="uploads/test/second-document.pdf",
+        total_pages=2,
+        uploader_id=owner_id,
+    )
+    db_session.add_all([first_document, second_document])
+    db_session.commit()
+    db_session.refresh(first_document)
+    db_session.refresh(second_document)
+
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=first_document.id))
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=second_document.id))
+    db_session.commit()
+
+    list_response = client.get(
+        f"/projects/{project_id}/documents",
+        headers=auth_headers(auth_token),
+    )
+
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert data["project_id"] == project_id
+    assert data["documents"] == [
+        {"id": first_document.id, "name": "first-document.pdf"},
+        {"id": second_document.id, "name": "second-document.pdf"},
+    ]
+
+
+def test_list_project_documents_allows_any_authenticated_user(client, auth_token, create_user, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Public Document Read", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="readable-document.pdf",
+        file_path="uploads/test/readable-document.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    outsider = create_user("document_reader", "document_reader@example.com", "password123")
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": outsider.username, "password": "password123"},
+    )
+    outsider_token = login_response.json()["access_token"]
+
+    list_response = client.get(
+        f"/projects/{project_id}/documents",
+        headers=auth_headers(outsider_token),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["documents"] == [{"id": document.id, "name": "readable-document.pdf"}]
+
+
+def test_list_project_documents_requires_auth(client, auth_token):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Document Auth", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    list_response = client.get(f"/projects/{project_id}/documents")
+
+    assert list_response.status_code == 401
+
+
+def test_list_project_documents_project_not_found(client, auth_token):
+    list_response = client.get(
+        "/projects/9999/documents",
+        headers=auth_headers(auth_token),
+    )
+
+    assert list_response.status_code == 404
+    assert "Project not found" in list_response.json()["detail"]
