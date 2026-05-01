@@ -43,6 +43,8 @@ class TestDocumentEndpoints:
         assert "uuid" in data
         assert "original_url" in data
 
+        client.delete(f"/documents/{response.json()['id']}", headers=headers)
+
     def test_upload_document_thumbnail_has_fixed_width(self, client: TestClient, auth_token: str, sample_pdf, cleanup_uploads):
         """Test generated thumbnails keep a fixed width and preserve aspect ratio."""
         files = {"file": ("test.pdf", sample_pdf, "application/pdf")}
@@ -59,6 +61,8 @@ class TestDocumentEndpoints:
 
         assert thumbnail.width == 150
         assert abs(thumbnail.height - expected_height) <= 1
+
+        client.delete(f"/documents/{response.json()['id']}", headers=headers)
 
     def test_upload_document_invalid_file_type(self, client: TestClient, auth_token: str, cleanup_uploads):
         """Test upload with invalid file type."""
@@ -112,6 +116,7 @@ class TestDocumentEndpoints:
         headers = {"Authorization": f"Bearer {auth_token}"}
 
         upload_response = client.post("/documents", files=files, data=data, headers=headers)
+
         assert upload_response.status_code == 201
         doc_id = upload_response.json()["id"]
 
@@ -128,6 +133,8 @@ class TestDocumentEndpoints:
         assert "created_at" in data
         assert "base_url" in data
         assert data["base_url"].endswith("/")
+
+        client.delete(f"/documents/{upload_response.json()['id']}", headers=headers)
 
     def test_get_document_not_found(self, client: TestClient, auth_token: str):
         """Test get non-existent document."""
@@ -159,6 +166,8 @@ class TestDocumentEndpoints:
         assert data["description"] == "Updated description"
         assert "updated.pdf" in data["file_path"]
 
+        client.delete(f"/documents/{upload_response.json()['id']}", headers=headers)
+
     def test_update_document_not_found(self, client: TestClient, auth_token: str):
         """Test update non-existent document."""
         headers = {"Authorization": f"Bearer {auth_token}"}
@@ -186,6 +195,8 @@ class TestDocumentEndpoints:
 
         assert response.status_code == 403
         assert "Not authorized to update this document" in response.json()["detail"]
+
+        client.delete(f"/documents/{upload_response.json()['id']}", headers=headers)
 
     def test_delete_document_success(self, client: TestClient, auth_token: str, db_session, sample_pdf, cleanup_uploads):
         """Test successful document deletion."""
@@ -231,3 +242,5 @@ class TestDocumentEndpoints:
 
         assert response.status_code == 403
         assert "Not authorized to delete this document" in response.json()["detail"]
+
+        client.delete(f"/documents/{upload_response.json()['id']}", headers=headers)
