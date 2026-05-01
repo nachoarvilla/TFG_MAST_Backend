@@ -15,6 +15,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 UPLOADS_DIR = Path(__file__).resolve().parents[1].parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+THUMBNAIL_WIDTH = 150
 
 
 class DocumentUpdate(BaseModel):
@@ -87,7 +88,8 @@ async def upload_document(
         pix.save(str(image_path), "jpeg", jpg_quality=95)
         page_files.append(image_name)
 
-        thumbnail_matrix = fitz.Matrix(0.3, 0.3)
+        thumbnail_scale = THUMBNAIL_WIDTH / page.rect.width
+        thumbnail_matrix = fitz.Matrix(thumbnail_scale, thumbnail_scale)
         thumbnail_pix = page.get_pixmap(matrix=thumbnail_matrix, alpha=False)
         thumbnail_path = thumbnails_dir / image_name
         thumbnail_pix.save(str(thumbnail_path), "jpeg", jpg_quality=75)
