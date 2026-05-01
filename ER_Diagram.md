@@ -2,8 +2,8 @@
 erDiagram
     USER }|--o{ TEAM : "belongs"
     USER ||--o{ PROJECT : "creates"
-    USER }|--o{ PROJECT : "collaborates"
-    TEAM ||--o{ PROJECT : "collaborates"
+    USER }o--o{ PROJECT : "collaborates"
+    TEAM }o--o{ PROJECT : "collaborates"
     USER ||--o{ DOCUMENT : "uploads"
 
     PROJECT ||--o{ PROJECT_DOCUMENT : "includes"
