@@ -112,9 +112,6 @@ async def upload_document(
         "original_filename": original_filename,
         "total_pages": page_count,
         "description": description,
-        "upload_directory": document_dir.name,
-        "pages": page_files,
-        "thumbnails": thumbnail_files,
         "original_url": f"/uploads/{document_dir.name}/{original_filename}",
     }
 
