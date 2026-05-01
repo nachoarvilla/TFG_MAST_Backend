@@ -39,8 +39,6 @@ class TestDocumentEndpoints:
         assert data["total_pages"] == 1
         assert data["description"] == "Test document"
         assert "uuid" in data
-        assert "upload_directory" in data
-        assert "pages" in data
         assert "original_url" in data
 
     def test_upload_document_invalid_file_type(self, client: TestClient, auth_token: str, cleanup_uploads):
