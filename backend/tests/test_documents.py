@@ -3,9 +3,11 @@ import shutil
 from pathlib import Path
 
 import pytest
+import fitz
 from fastapi.testclient import TestClient
 
 from models import Document
+from routers.document import UPLOADS_DIR
 
 
 @pytest.fixture(scope="function")
@@ -40,6 +42,23 @@ class TestDocumentEndpoints:
         assert data["description"] == "Test document"
         assert "uuid" in data
         assert "original_url" in data
+
+    def test_upload_document_thumbnail_has_fixed_width(self, client: TestClient, auth_token: str, sample_pdf, cleanup_uploads):
+        """Test generated thumbnails keep a fixed width and preserve aspect ratio."""
+        files = {"file": ("test.pdf", sample_pdf, "application/pdf")}
+        data = {"description": "Test document"}
+        headers = {"Authorization": f"Bearer {auth_token}"}
+
+        response = client.post("/documents", files=files, data=data, headers=headers)
+
+        assert response.status_code == 201
+        upload_uuid = response.json()["uuid"]
+        thumbnail_path = UPLOADS_DIR / upload_uuid / "thumbnails" / "page_1.jpg"
+        thumbnail = fitz.Pixmap(str(thumbnail_path))
+        expected_height = 150 * 792 / 612
+
+        assert thumbnail.width == 150
+        assert abs(thumbnail.height - expected_height) <= 1
 
     def test_upload_document_invalid_file_type(self, client: TestClient, auth_token: str, cleanup_uploads):
         """Test upload with invalid file type."""
