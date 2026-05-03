@@ -142,7 +142,7 @@ async def get_document(
         "total_pages": document.total_pages,
         "uploader": document.uploader.username,
         "uploader_id": document.uploader_id,
-        "created_at": document.created_at.isoformat(),
+        "created_at": int(document.created_at.timestamp()),
         "base_url": base_url,
     }
 
