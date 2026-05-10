@@ -73,7 +73,7 @@ erDiagram
         int id PK
         int project_document_id FK
         int page_number
-        string shape_type
+        string type
         json coordinates
     }
 
