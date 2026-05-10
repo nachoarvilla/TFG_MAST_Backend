@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, func, UniqueConstraint, Index, Enum, JSON
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -99,10 +99,33 @@ class ProjectTeam(Base):
 
 class ProjectDocument(Base):
     __tablename__ = "project_documents"
+    __table_args__ = (
+        UniqueConstraint("project_id", "document_id", name="uq_project_document"),
+        Index("fk_pd_document", "document_id"),
+        Index("idx_project_documents_project_id", "project_id"),
+    )
 
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True)
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
 
     # Relationships
     project = relationship("Project", back_populates="documents")
     document = relationship("Document", back_populates="projects")
+    regions = relationship("Region", back_populates="project_document", cascade="all, delete-orphan")
+
+
+class Region(Base):
+    __tablename__ = "regions"
+    __table_args__ = (
+        Index("idx_regions_project_document_id", "project_document_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    project_document_id = Column(Integer, ForeignKey("project_documents.id", ondelete="CASCADE"), nullable=False)
+    page_number = Column(Integer, nullable=False)
+    type = Column(Enum("Polygon", "Polyline", "Rectangle", name="region_type"), nullable=False)
+    coordinates = Column(JSON, nullable=False)
+
+    # Relationships
+    project_document = relationship("ProjectDocument", back_populates="regions")
