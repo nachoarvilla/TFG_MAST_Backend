@@ -166,42 +166,6 @@ def test_create_region_rejects_rectangle_without_two_coordinates(client, auth_to
     assert "Rectangle regions must have exactly 2 coordinates" in create_response.json()["detail"]
 
 
-def test_create_region_accepts_coordinate_objects(client, auth_token, db_session):
-    project_response = client.post(
-        "/projects",
-        json={"name": "Project Region Object Coordinates", "description": "Test", "is_private": True},
-        headers=auth_headers(auth_token),
-    )
-    project_id = project_response.json()["id"]
-    owner_id = project_response.json()["owner_id"]
-
-    document = models.Document(
-        name="region-object-coordinates.pdf",
-        file_path="uploads/test/region-object-coordinates.pdf",
-        total_pages=1,
-        uploader_id=owner_id,
-    )
-    db_session.add(document)
-    db_session.commit()
-    db_session.refresh(document)
-    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
-    db_session.commit()
-
-    coordinates = [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}]
-    create_response = client.post(
-        f"/projects/{project_id}/documents/{document.id}/regions",
-        json={
-            "page_number": 1,
-            "type": "Polyline",
-            "coordinates": coordinates,
-        },
-        headers=auth_headers(auth_token),
-    )
-
-    assert create_response.status_code == 201
-    assert create_response.json()["coordinates"] == coordinates
-
-
 def test_create_region_rejects_invalid_coordinate_shape(client, auth_token, db_session):
     project_response = client.post(
         "/projects",
@@ -234,7 +198,7 @@ def test_create_region_rejects_invalid_coordinate_shape(client, auth_token, db_s
     )
 
     assert create_response.status_code == 400
-    assert "Each coordinate must be [x, y] or {'x': x, 'y': y}" in create_response.json()["detail"]
+    assert "Each coordinate must be [[x, y], [x, y], ...] with numeric values" in create_response.json()["detail"]
 
 
 def test_create_region_rejects_polygon_without_multiple_coordinates(client, auth_token, db_session):
