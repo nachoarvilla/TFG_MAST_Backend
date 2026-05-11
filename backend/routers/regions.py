@@ -76,6 +76,30 @@ def can_create_regions(project: models.Project, current_user: models.User, db: S
     return team_access is not None
 
 
+def can_read_regions(project: models.Project, current_user: models.User, db: Session) -> bool:
+    if not project.is_private:
+        return True
+
+    if project.owner_id == current_user.id:
+        return True
+
+    user_access = db.query(models.ProjectUser).filter(
+        models.ProjectUser.project_id == project.id,
+        models.ProjectUser.user_id == current_user.id,
+    ).first()
+    if user_access:
+        return True
+
+    team_access = db.query(models.ProjectTeam).join(
+        models.TeamMember,
+        models.TeamMember.team_id == models.ProjectTeam.team_id,
+    ).filter(
+        models.ProjectTeam.project_id == project.id,
+        models.TeamMember.user_id == current_user.id,
+    ).first()
+    return team_access is not None
+
+
 @router.post("/{project_id}/documents/{document_id}/regions", status_code=status.HTTP_201_CREATED)
 def create_region(
     project_id: int,
@@ -124,6 +148,56 @@ def create_region(
         "id": region.id,
         "project_id": project_id,
         "document_id": document_id,
+        "project_document_id": region.project_document_id,
+        "page_number": region.page_number,
+        "type": region.type,
+        "coordinates": region.coordinates,
+    }
+
+
+@router.get("/{project_id}/documents/{document_id}/regions/{region_id}")
+def get_region(
+    project_id: int,
+    document_id: int,
+    region_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get a region from a project document."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if not can_read_regions(project, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this project",
+        )
+
+    project_document = db.query(models.ProjectDocument).filter(
+        models.ProjectDocument.project_id == project_id,
+        models.ProjectDocument.document_id == document_id,
+    ).first()
+    if not project_document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document is not added to this project",
+        )
+
+    region = db.query(models.Region).filter(
+        models.Region.id == region_id,
+        models.Region.project_document_id == project_document.id,
+    ).first()
+    if not region:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Region not found",
+        )
+
+    return {
         "project_document_id": region.project_document_id,
         "page_number": region.page_number,
         "type": region.type,
