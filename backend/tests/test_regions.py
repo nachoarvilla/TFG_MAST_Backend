@@ -384,3 +384,117 @@ def test_get_region_forbidden_for_private_project_non_member(client, auth_token,
 
     assert read_response.status_code == 403
     assert "You don't have access to this project" in read_response.json()["detail"]
+
+
+def test_update_region_by_project_owner_changes_type_and_coordinates(client, auth_token, db_session):
+    project_id, document, project_document, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Update Owner",
+    )
+
+    update_response = client.put(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        json={
+            "type": "Rectangle",
+            "coordinates": [[10, 20], [30, 40]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json() == {
+        "project_document_id": project_document.id,
+        "page_number": 1,
+        "type": "Rectangle",
+        "coordinates": [[10, 20], [30, 40]],
+    }
+
+    db_session.refresh(region)
+    assert region.type == "Rectangle"
+    assert region.coordinates == [[10, 20], [30, 40]]
+
+
+def test_update_region_by_project_collaborator(client, auth_token, create_user, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Update Collaborator",
+    )
+
+    collaborator = create_user("region_update_collab", "region_update_collab@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=collaborator.id, role="collaborator"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": collaborator.username, "password": "password123"},
+    )
+    collaborator_token = login_response.json()["access_token"]
+
+    update_response = client.put(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        json={
+            "type": "Polyline",
+            "coordinates": [[7, 8], [9, 10]],
+        },
+        headers=auth_headers(collaborator_token),
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["type"] == "Polyline"
+    assert update_response.json()["coordinates"] == [[7, 8], [9, 10]]
+
+
+def test_update_region_forbidden_for_project_viewer(client, auth_token, create_user, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Update Viewer",
+    )
+
+    viewer = create_user("region_update_viewer", "region_update_viewer@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=viewer.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": viewer.username, "password": "password123"},
+    )
+    viewer_token = login_response.json()["access_token"]
+
+    update_response = client.put(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        json={
+            "type": "Polyline",
+            "coordinates": [[7, 8], [9, 10]],
+        },
+        headers=auth_headers(viewer_token),
+    )
+
+    assert update_response.status_code == 403
+    assert "Only project owners and collaborators can update regions" in update_response.json()["detail"]
+
+
+def test_update_region_rejects_rectangle_without_two_coordinates(client, auth_token, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Update Rectangle Validation",
+    )
+
+    update_response = client.put(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        json={
+            "type": "Rectangle",
+            "coordinates": [[1, 2], [3, 4], [5, 6]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert update_response.status_code == 400
+    assert "Rectangle regions must have exactly 2 coordinates" in update_response.json()["detail"]
