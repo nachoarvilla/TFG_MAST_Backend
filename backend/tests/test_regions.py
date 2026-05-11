@@ -5,6 +5,43 @@ def auth_headers(token: str):
     return {"Authorization": f"Bearer {token}"}
 
 
+def create_project_document_region(client, auth_token, db_session, project_name, is_private=True):
+    project_response = client.post(
+        "/projects",
+        json={"name": project_name, "description": "Test reading region", "is_private": is_private},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name=f"{project_name}.pdf",
+        file_path=f"uploads/test/{project_name}.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+
+    project_document = models.ProjectDocument(project_id=project_id, document_id=document.id)
+    db_session.add(project_document)
+    db_session.commit()
+    db_session.refresh(project_document)
+
+    region = models.Region(
+        project_document_id=project_document.id,
+        page_number=1,
+        type="Polygon",
+        coordinates=[[1, 2], [3, 4], [5, 6]],
+    )
+    db_session.add(region)
+    db_session.commit()
+    db_session.refresh(region)
+
+    return project_id, document, project_document, region
+
+
 def test_create_region_by_project_owner(client, auth_token, db_session):
     project_response = client.post(
         "/projects",
@@ -234,3 +271,116 @@ def test_create_region_rejects_polygon_without_multiple_coordinates(client, auth
 
     assert create_response.status_code == 400
     assert "Polygon and Polyline regions must have at least 2 coordinates" in create_response.json()["detail"]
+
+
+def test_get_region_allows_private_project_user_with_any_role(client, auth_token, create_user, db_session):
+    project_id, document, project_document, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Read User",
+    )
+
+    viewer = create_user("region_read_viewer", "region_read_viewer@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=viewer.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": viewer.username, "password": "password123"},
+    )
+    viewer_token = login_response.json()["access_token"]
+
+    read_response = client.get(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        headers=auth_headers(viewer_token),
+    )
+
+    assert read_response.status_code == 200
+    assert read_response.json() == {
+        "project_document_id": project_document.id,
+        "page_number": 1,
+        "type": "Polygon",
+        "coordinates": [[1, 2], [3, 4], [5, 6]],
+    }
+
+
+def test_get_region_allows_private_project_team_member_with_any_role(client, auth_token, create_user, db_session):
+    project_id, document, project_document, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Read Team",
+    )
+
+    team_member = create_user("region_read_team", "region_read_team@example.com", "password123")
+    team = models.Team(name="Region Read Team", description="Team with viewer access")
+    db_session.add(team)
+    db_session.commit()
+    db_session.refresh(team)
+    db_session.add(models.TeamMember(user_id=team_member.id, team_id=team.id, role="member"))
+    db_session.add(models.ProjectTeam(project_id=project_id, team_id=team.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": team_member.username, "password": "password123"},
+    )
+    team_member_token = login_response.json()["access_token"]
+
+    read_response = client.get(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        headers=auth_headers(team_member_token),
+    )
+
+    assert read_response.status_code == 200
+    assert read_response.json()["project_document_id"] == project_document.id
+
+
+def test_get_region_allows_authenticated_user_for_public_project(client, auth_token, create_user, db_session):
+    project_id, document, project_document, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Read Public",
+        is_private=False,
+    )
+
+    reader = create_user("region_public_reader", "region_public_reader@example.com", "password123")
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": reader.username, "password": "password123"},
+    )
+    reader_token = login_response.json()["access_token"]
+
+    read_response = client.get(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        headers=auth_headers(reader_token),
+    )
+
+    assert read_response.status_code == 200
+    assert read_response.json()["project_document_id"] == project_document.id
+
+
+def test_get_region_forbidden_for_private_project_non_member(client, auth_token, create_user, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Read Forbidden",
+    )
+
+    outsider = create_user("region_private_outsider", "region_private_outsider@example.com", "password123")
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": outsider.username, "password": "password123"},
+    )
+    outsider_token = login_response.json()["access_token"]
+
+    read_response = client.get(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        headers=auth_headers(outsider_token),
+    )
+
+    assert read_response.status_code == 403
+    assert "You don't have access to this project" in read_response.json()["detail"]
