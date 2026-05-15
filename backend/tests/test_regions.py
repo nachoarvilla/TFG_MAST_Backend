@@ -498,3 +498,78 @@ def test_update_region_rejects_rectangle_without_two_coordinates(client, auth_to
 
     assert update_response.status_code == 400
     assert "Rectangle regions must have exactly 2 coordinates" in update_response.json()["detail"]
+
+
+def test_delete_region_by_project_owner_removes_region(client, auth_token, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Delete Owner",
+    )
+    region_id = region.id
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region_id}",
+        headers=auth_headers(auth_token),
+    )
+
+    assert delete_response.status_code == 200
+    assert "deleted successfully" in delete_response.json()["message"]
+    assert db_session.query(models.Region).filter(models.Region.id == region_id).first() is None
+
+
+def test_delete_region_by_project_collaborator(client, auth_token, create_user, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Delete Collaborator",
+    )
+    region_id = region.id
+
+    collaborator = create_user("region_delete_collab", "region_delete_collab@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=collaborator.id, role="collaborator"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": collaborator.username, "password": "password123"},
+    )
+    collaborator_token = login_response.json()["access_token"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region_id}",
+        headers=auth_headers(collaborator_token),
+    )
+
+    assert delete_response.status_code == 200
+    assert db_session.query(models.Region).filter(models.Region.id == region_id).first() is None
+
+
+def test_delete_region_forbidden_for_project_viewer(client, auth_token, create_user, db_session):
+    project_id, document, _, region = create_project_document_region(
+        client,
+        auth_token,
+        db_session,
+        "Project Region Delete Viewer",
+    )
+
+    viewer = create_user("region_delete_viewer", "region_delete_viewer@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=viewer.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": viewer.username, "password": "password123"},
+    )
+    viewer_token = login_response.json()["access_token"]
+
+    delete_response = client.delete(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}",
+        headers=auth_headers(viewer_token),
+    )
+
+    assert delete_response.status_code == 403
+    assert "Only project owners and collaborators can delete regions" in delete_response.json()["detail"]
+    assert db_session.query(models.Region).filter(models.Region.id == region.id).first() is not None
