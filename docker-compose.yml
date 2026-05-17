@@ -5,36 +5,63 @@ services:
     restart: always
     environment:
       MYSQL_DATABASE: mast_db
-      MYSQL_ROOT_PASSWORD: tfgnacho
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_ROOT_HOST: "%"
-    ports:
-      - "3307:3306"
+    expose:
+      - "3306"
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
       timeout: 5s
       retries: 10
 
   backend:
     build: ./backend
     container_name: mast_backend
-    ports:
-      - "8000:8000"
+    restart: always
+    expose:
+      - "8000"
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: mast_db
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+      FILES_BASE_URL: ${FILES_BASE_URL}
     volumes:
-      - ./backend:/app  # Allows code changes to be reflected instantly
-      - ./uploads:/uploads
+      - uploads_data:/uploads
 
   files_server:
     image: nginx:alpine
     container_name: mast_files
-    ports:
-      - "8010:80" 
+    restart: always
+    expose:
+      - "80"
     volumes:
-      - ./uploads:/usr/share/nginx/html:ro
+      - uploads_data:/usr/share/nginx/html:ro
+
+  caddy:
+    image: caddy:latest
+    container_name: mast_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - files_server
 
 volumes:
   db_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:
