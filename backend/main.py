@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,7 +10,10 @@ from routers import auth_router, document_router, root_router, team_router, proj
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="MAST Backend API")
+app = FastAPI(
+    title="MAST Backend API",
+    root_path=os.getenv("ROOT_PATH", ""),
+)
 
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
