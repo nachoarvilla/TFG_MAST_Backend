@@ -12,7 +12,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="MAST Backend API",
-    root_path=os.getenv("ROOT_PATH", ""),
+    root_path=os.getenv("ROOT_PATH", "/api"),
 )
 
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
