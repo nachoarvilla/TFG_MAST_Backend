@@ -82,7 +82,7 @@ async def upload_document(
 
     for page_index in range(page_count):
         page = document.load_page(page_index)
-        matrix = fitz.Matrix(2.0, 2.0)
+        matrix = fitz.Matrix(1.0, 1.0)
         pix = page.get_pixmap(matrix=matrix, alpha=False)
 
         image_name = f"page_{page_index + 1}.jpg"
