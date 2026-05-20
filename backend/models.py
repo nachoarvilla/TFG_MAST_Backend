@@ -35,7 +35,12 @@ class TeamMember(Base):
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     team_id = Column(Integer, ForeignKey("teams.id"), primary_key=True)
-    role = Column(String(50), default="member")
+    role = Column(
+        Enum("leader", "member", name="team_member_role", validate_strings=True),
+        nullable=False,
+        default="member",
+        server_default="member",
+    )
 
     # Relationships
     user = relationship("User", back_populates="teams")
@@ -78,7 +83,12 @@ class ProjectUser(Base):
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    role = Column(String(50), default="collaborator")
+    role = Column(
+        Enum("owner", "collaborator", "viewer", name="project_user_role", validate_strings=True),
+        nullable=False,
+        default="viewer",
+        server_default="viewer",
+    )
 
     # Relationships
     project = relationship("Project", back_populates="user_access")
@@ -90,7 +100,12 @@ class ProjectTeam(Base):
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)
-    role = Column(String(50), default="collaborator")
+    role = Column(
+        Enum("collaborator", "viewer", name="project_team_role", validate_strings=True),
+        nullable=False,
+        default="viewer",
+        server_default="viewer",
+    )
 
     # Relationships
     project = relationship("Project", back_populates="team_access")
