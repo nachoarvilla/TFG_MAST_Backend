@@ -273,6 +273,221 @@ def test_create_region_rejects_polygon_without_multiple_coordinates(client, auth
     assert "Polygon and Polyline regions must have at least 2 coordinates" in create_response.json()["detail"]
 
 
+def test_create_polygon_region_with_two_points(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Polygon Two Points", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-polygon-two-points.pdf",
+        file_path="uploads/test/region-polygon-two-points.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Polygon",
+            "coordinates": [[1, 2], [3, 4]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 201
+    assert create_response.json()["type"] == "Polygon"
+    assert create_response.json()["coordinates"] == [[1, 2], [3, 4]]
+
+
+def test_create_polygon_region_with_five_points(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Polygon Five Points", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-polygon-five-points.pdf",
+        file_path="uploads/test/region-polygon-five-points.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    coordinates = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Polygon",
+            "coordinates": coordinates,
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 201
+    assert create_response.json()["type"] == "Polygon"
+    assert create_response.json()["coordinates"] == coordinates
+
+
+def test_create_polyline_region_rejects_one_point(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Polyline One Point", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-polyline-one-point.pdf",
+        file_path="uploads/test/region-polyline-one-point.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Polyline",
+            "coordinates": [[1, 2]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 400
+    assert "Polygon and Polyline regions must have at least 2 coordinates" in create_response.json()["detail"]
+
+
+def test_create_polyline_region_with_five_points(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Polyline Five Points", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-polyline-five-points.pdf",
+        file_path="uploads/test/region-polyline-five-points.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    coordinates = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Polyline",
+            "coordinates": coordinates,
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 201
+    assert create_response.json()["type"] == "Polyline"
+    assert create_response.json()["coordinates"] == coordinates
+
+
+def test_create_rectangle_region_rejects_one_point(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Rectangle One Point", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-rectangle-one-point.pdf",
+        file_path="uploads/test/region-rectangle-one-point.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Rectangle",
+            "coordinates": [[1, 2]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 400
+    assert "Rectangle regions must have exactly 2 coordinates" in create_response.json()["detail"]
+
+
+def test_create_rectangle_region_rejects_five_points(client, auth_token, db_session):
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Region Rectangle Five Points", "description": "Test", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    document = models.Document(
+        name="region-rectangle-five-points.pdf",
+        file_path="uploads/test/region-rectangle-five-points.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+    db_session.add(models.ProjectDocument(project_id=project_id, document_id=document.id))
+    db_session.commit()
+
+    create_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions",
+        json={
+            "page_number": 1,
+            "type": "Rectangle",
+            "coordinates": [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]],
+        },
+        headers=auth_headers(auth_token),
+    )
+
+    assert create_response.status_code == 400
+    assert "Rectangle regions must have exactly 2 coordinates" in create_response.json()["detail"]
+
+
 def test_get_region_allows_private_project_user_with_any_role(client, auth_token, create_user, db_session):
     project_id, document, project_document, region = create_project_document_region(
         client,
