@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Any, Literal
 
 import models
-from auth import get_current_user
+from auth import get_current_user, is_admin_user
 from database import get_db
 
 router = APIRouter(prefix="/projects", tags=["regions"])
@@ -59,6 +59,9 @@ def validate_region_coordinates(region_type: str, coordinates: list[Any]):
 
 
 def can_create_regions(project: models.Project, current_user: models.User, db: Session) -> bool:
+    if is_admin_user(current_user):
+        return True
+
     if project.owner_id == current_user.id:
         return True
 
@@ -82,6 +85,9 @@ def can_create_regions(project: models.Project, current_user: models.User, db: S
 
 
 def can_read_regions(project: models.Project, current_user: models.User, db: Session) -> bool:
+    if is_admin_user(current_user):
+        return True
+
     if not project.is_private:
         return True
 

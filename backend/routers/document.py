@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
-from auth import get_current_user
+from auth import get_current_user, is_admin_user
 from database import get_db
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -160,7 +160,7 @@ async def update_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if document.uploader_id != current_user.id:
+    if document.uploader_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this document")
 
     # Check if name is being updated
@@ -217,7 +217,7 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if document.uploader_id != current_user.id:
+    if document.uploader_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this document")
 
     # Extract UUID from file_path

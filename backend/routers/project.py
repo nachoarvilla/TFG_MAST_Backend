@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
-from auth import get_current_user
+from auth import get_current_user, is_admin_user
 from database import get_db
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -98,7 +98,7 @@ def add_user_to_project(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can add users",
@@ -170,7 +170,7 @@ def update_user_role(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can update user roles",
@@ -235,7 +235,7 @@ def remove_user_from_project(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can remove users",
@@ -275,6 +275,22 @@ def remove_user_from_project(
 @router.get("")
 def list_projects(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all projects where the user has access (owner or invited)."""
+    if is_admin_user(current_user):
+        projects = db.query(models.Project).all()
+        return {
+            "projects": [
+                {
+                    "id": project.id,
+                    "name": project.name,
+                    "description": project.description,
+                    "is_private": project.is_private,
+                    "owner_id": project.owner_id,
+                    "user_role": "admin",
+                }
+                for project in projects
+            ]
+        }
+
     # Get projects where user is owner
     owned_projects = db.query(models.Project).filter(models.Project.owner_id == current_user.id).all()
 
@@ -342,7 +358,10 @@ def get_project(project_id: int, current_user: models.User = Depends(get_current
     has_access = False
     user_role = "viewer"
 
-    if project.owner_id == current_user.id:
+    if is_admin_user(current_user):
+        has_access = True
+        user_role = "admin"
+    elif project.owner_id == current_user.id:
         has_access = True
         user_role = "owner"
     else:
@@ -391,7 +410,7 @@ def update_project(project_id: int, project_update: ProjectUpdate, current_user:
         )
 
     # Check if user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can update the project",
@@ -436,7 +455,7 @@ def delete_project(project_id: int, current_user: models.User = Depends(get_curr
         )
 
     # Check if user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can delete the project",
@@ -466,7 +485,7 @@ def add_team_to_project(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can add teams",
@@ -531,7 +550,7 @@ def add_document_to_project(
             detail="Project not found",
         )
 
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can add documents",
@@ -611,7 +630,7 @@ def remove_document_from_project(
             detail="Project not found",
         )
 
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can remove documents",
@@ -701,7 +720,7 @@ def update_team_role(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can update team roles",
@@ -759,7 +778,7 @@ def remove_team_from_project(
         )
 
     # Check if current user is the owner
-    if project.owner_id != current_user.id:
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner can remove teams",

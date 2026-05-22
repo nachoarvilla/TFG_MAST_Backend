@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
-from auth import get_current_user
+from auth import get_current_user, is_admin_user
 from database import get_db
 
 router = APIRouter()
@@ -55,7 +55,7 @@ def add_team_member(team_id: int, request: AddMemberRequest, current_user: model
         models.TeamMember.user_id == current_user.id,
         models.TeamMember.role == "leader"
     ).first()
-    if not leader_membership:
+    if not leader_membership and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the team leader can add members")
 
     user_to_add = db.query(models.User).filter(models.User.username == request.username).first()
@@ -87,7 +87,7 @@ def remove_team_member(team_id: int, request: AddMemberRequest, current_user: mo
         models.TeamMember.user_id == current_user.id,
         models.TeamMember.role == "leader"
     ).first()
-    if not leader_membership:
+    if not leader_membership and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the team leader can remove members")
 
     user_to_remove = db.query(models.User).filter(models.User.username == request.username).first()
@@ -121,7 +121,7 @@ def delete_team(team_id: int, current_user: models.User = Depends(get_current_us
         models.TeamMember.user_id == current_user.id,
         models.TeamMember.role == "leader"
     ).first()
-    if not leader_membership:
+    if not leader_membership and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the team leader can delete the team")
 
     db.query(models.TeamMember).filter(models.TeamMember.team_id == team_id).delete()
@@ -158,7 +158,7 @@ def get_team_information(team_id: int, current_user: models.User = Depends(get_c
         models.TeamMember.team_id == team_id,
         models.TeamMember.user_id == current_user.id,
     ).first()
-    if not membership:
+    if not membership and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only team members can view team information")
 
     members = []
@@ -182,7 +182,7 @@ def update_team_information(team_id: int, team_update: TeamUpdate, current_user:
         models.TeamMember.user_id == current_user.id,
         models.TeamMember.role == "leader"
     ).first()
-    if not leader_membership:
+    if not leader_membership and not is_admin_user(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the team leader can update the team")
 
     if team_update.name != team.name:

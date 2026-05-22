@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 import models
-from auth import get_current_user, hash_password
+from auth import get_current_user, hash_password, is_admin_user
 from database import get_db
 
 router = APIRouter()
@@ -36,8 +36,8 @@ def update_user(user_id: int, user_update: UserUpdate, current_user: models.User
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    if current_user.id != user_id and current_user.role != "root":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can update this account")
+    if current_user.id != user_id and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user, root or admin can update this account")
 
     if user_update.username and user_update.username != user.username:
         existing = db.query(models.User).filter(models.User.username == user_update.username).first()
@@ -66,8 +66,8 @@ def delete_user(user_id: int, current_user: models.User = Depends(get_current_us
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    if current_user.id != user_id and current_user.role != "root":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user or root can delete this account")
+    if current_user.id != user_id and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the user, root or admin can delete this account")
 
     db.delete(user)
     db.commit()
