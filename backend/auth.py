@@ -60,6 +60,11 @@ def verify_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
+
+def is_admin_user(user: User) -> bool:
+    return user.role == "admin"
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
