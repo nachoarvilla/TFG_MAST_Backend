@@ -178,7 +178,7 @@ class TestDocumentEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    def test_update_document_unauthorized(self, client: TestClient, auth_token: str, root_token: str, db_session, sample_pdf, cleanup_uploads):
+    def test_update_document_unauthorized(self, client: TestClient, auth_token: str, create_user, db_session, sample_pdf, cleanup_uploads):
         """Test update document by non-owner."""
         # Upload with auth_token (user 1)
         files = {"file": ("test.pdf", sample_pdf, "application/pdf")}
@@ -188,10 +188,16 @@ class TestDocumentEndpoints:
         upload_response = client.post("/documents", files=files, data=data, headers=headers)
         doc_id = upload_response.json()["id"]
 
-        # Try to update with root_token (different user)
-        headers_root = {"Authorization": f"Bearer {root_token}"}
+        # Try to update with a different non-admin user
+        create_user("document_intruder", "document_intruder@example.com", "password123")
+        login_response = client.post(
+            "/login",
+            json={"username_or_email": "document_intruder", "password": "password123"},
+        )
+        intruder_token = login_response.json()["access_token"]
+        headers_intruder = {"Authorization": f"Bearer {intruder_token}"}
         update_data = {"name": "hacked.pdf"}
-        response = client.put(f"/documents/{doc_id}", json=update_data, headers=headers_root)
+        response = client.put(f"/documents/{doc_id}", json=update_data, headers=headers_intruder)
 
         assert response.status_code == 403
         assert "Not authorized to update this document" in response.json()["detail"]
@@ -226,7 +232,7 @@ class TestDocumentEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    def test_delete_document_unauthorized(self, client: TestClient, auth_token: str, root_token: str, db_session, sample_pdf, cleanup_uploads):
+    def test_delete_document_unauthorized(self, client: TestClient, auth_token: str, create_user, db_session, sample_pdf, cleanup_uploads):
         """Test delete document by non-owner."""
         # Upload with auth_token
         files = {"file": ("test.pdf", sample_pdf, "application/pdf")}
@@ -236,9 +242,15 @@ class TestDocumentEndpoints:
         upload_response = client.post("/documents", files=files, data=data, headers=headers)
         doc_id = upload_response.json()["id"]
 
-        # Try to delete with root_token
-        headers_root = {"Authorization": f"Bearer {root_token}"}
-        response = client.delete(f"/documents/{doc_id}", headers=headers_root)
+        # Try to delete with a different non-admin user
+        create_user("document_delete_intruder", "document_delete_intruder@example.com", "password123")
+        login_response = client.post(
+            "/login",
+            json={"username_or_email": "document_delete_intruder", "password": "password123"},
+        )
+        intruder_token = login_response.json()["access_token"]
+        headers_intruder = {"Authorization": f"Bearer {intruder_token}"}
+        response = client.delete(f"/documents/{doc_id}", headers=headers_intruder)
 
         assert response.status_code == 403
         assert "Not authorized to delete this document" in response.json()["detail"]
