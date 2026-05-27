@@ -6,7 +6,7 @@ import models
 from auth import create_access_token, hash_password, verify_password
 from database import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
 
 
 class UserCreate(BaseModel):

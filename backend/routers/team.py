@@ -6,7 +6,7 @@ import models
 from auth import get_current_user, is_admin_user
 from database import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["teams"])
 
 
 class TeamCreate(BaseModel):

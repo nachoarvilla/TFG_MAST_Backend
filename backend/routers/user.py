@@ -6,7 +6,7 @@ import models
 from auth import get_current_user, hash_password, is_admin_user
 from database import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["users"])
 
 
 class UserUpdate(BaseModel):
