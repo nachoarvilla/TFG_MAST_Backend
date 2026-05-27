@@ -17,17 +17,12 @@ ph = argon2.PasswordHasher()
 # Configuration for JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "secret_key_for_JWT_hashing")  # We can change in production
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 security = HTTPBearer()
 
 # Configuration for Argon2
 ph = argon2.PasswordHasher()
-
-# Configuration for JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "secret_key_for_JWT_hashing")  # We can change in production
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def hash_password(password: str) -> str:
     """Hash a password using Argon2."""
