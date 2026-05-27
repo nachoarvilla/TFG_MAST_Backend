@@ -5,7 +5,7 @@ router = APIRouter()
 
 @router.get("/")
 def read_root():
-    return {"message": "Welcome to the MAST backend", "status": "online"}
+    return {"message": "Welcome to the Annot8 backend", "status": "online"}
 
 
 @router.get("/health")

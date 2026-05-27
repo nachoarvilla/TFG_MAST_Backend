@@ -11,7 +11,7 @@ from routers import auth_router, document_router, root_router, team_router, proj
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="MAST Backend API",
+    title="Annot8 Backend API",
     root_path=os.getenv("ROOT_PATH", "/api"),
 )
 
