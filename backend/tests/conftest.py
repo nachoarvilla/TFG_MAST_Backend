@@ -76,7 +76,7 @@ def auth_token(client, create_user):
 def root_token(client, create_user):
     username = "rootuser"
     password = "rootpassword"
-    create_user(username=username, email="rootuser@example.com", password=password, role="root")
+    create_user(username=username, email="rootuser@example.com", password=password, role="admin")
     response = client.post(
         "/login",
         json={"username_or_email": username, "password": password},

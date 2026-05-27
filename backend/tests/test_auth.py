@@ -1,7 +1,7 @@
 def test_root_and_health(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json()["message"] == "Welcome to the MAST backend"
+    assert response.json()["message"] == "Welcome to the Annot8 backend"
 
     response = client.get("/health")
     assert response.status_code == 200
