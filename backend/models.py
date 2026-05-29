@@ -16,6 +16,12 @@ class User(Base):
     owned_projects = relationship("Project", back_populates="owner", foreign_keys="Project.owner_id")
     project_access = relationship("ProjectUser", back_populates="user")
     uploaded_documents = relationship("Document", back_populates="uploader", cascade="all, delete-orphan")
+    created_annotation_schemas = relationship(
+        "AnnotationSchema",
+        back_populates="user_creator",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class Team(Base):
@@ -144,3 +150,45 @@ class Region(Base):
 
     # Relationships
     project_document = relationship("ProjectDocument", back_populates="regions")
+
+
+class AnnotationSchema(Base):
+    __tablename__ = "annotation_schemas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    type = Column(
+        Enum("schema", "class", "annotation", name="annotation_schema_type", validate_strings=True),
+        nullable=False,
+    )
+    parent_id = Column(Integer, ForeignKey("annotation_schemas.id", ondelete="SET NULL"), nullable=True)
+    user_creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    # Relationships
+    user_creator = relationship("User", back_populates="created_annotation_schemas")
+    publications = relationship(
+        "SchemaPublication",
+        back_populates="annotation_schema",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    parent = relationship("AnnotationSchema", remote_side=[id], back_populates="children")
+    children = relationship("AnnotationSchema", back_populates="parent", cascade="all, delete-orphan")
+
+
+class SchemaPublication(Base):
+    __tablename__ = "schema_publications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    type = Column(
+        Enum("schema", "class", "annotation", name="schema_publication_type", validate_strings=True),
+        nullable=False,
+    )
+    parent_id = Column(Integer, ForeignKey("schema_publications.id", ondelete="SET NULL"), nullable=True)
+    annotation_schema_id = Column(Integer, ForeignKey("annotation_schemas.id", ondelete="CASCADE"), nullable=False)
+
+    # Relationships
+    annotation_schema = relationship("AnnotationSchema", back_populates="publications")
+    parent = relationship("SchemaPublication", remote_side=[id], back_populates="children")
+    children = relationship("SchemaPublication", back_populates="parent", cascade="all, delete-orphan")
