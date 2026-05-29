@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 import models
 from database import engine, get_db
-from routers import auth_router, document_router, root_router, team_router, project_router, regions_router, user_router
+from routers import auth_router, document_router, root_router, schema_router, team_router, project_router, regions_router, user_router
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -22,6 +22,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.include_router(root_router)
 app.include_router(auth_router)
 app.include_router(document_router)
+app.include_router(schema_router)
 app.include_router(team_router)
 app.include_router(project_router)
 app.include_router(regions_router)
