@@ -167,7 +167,7 @@ def publish_annotation_schema(
         .count()
     )
     version = version_count + 1
-    name_suffix = f" v{version}"
+    name_suffix = f" (v{version})"
 
     publication_root = _publish_schema_node(
         schema_obj,
