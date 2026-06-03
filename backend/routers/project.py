@@ -41,6 +41,14 @@ class AddDocumentRequest(BaseModel):
     document_id: int
 
 
+class AddSchemaPublicationRequest(BaseModel):
+    schema_publication_id: int
+
+
+class RemoveSchemaPublicationRequest(BaseModel):
+    schema_publication_id: int
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_project(project: ProjectCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Create a new project. The creator becomes the owner."""
@@ -654,6 +662,186 @@ def remove_document_from_project(
         "project_id": project_id,
         "document_id": document_id,
     }
+
+
+@router.post("/{project_id}/schema-publications", status_code=status.HTTP_201_CREATED)
+def add_schema_publication_to_project(
+    project_id: int,
+    request: AddSchemaPublicationRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Associate a schema publication version to a project. Only the project owner or admin can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner or admin
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can add schema publications",
+        )
+
+    # Check if schema publication exists and is a root publication
+    schema_publication = db.query(models.SchemaPublication).filter(
+        models.SchemaPublication.id == request.schema_publication_id
+    ).first()
+    if not schema_publication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schema publication not found",
+        )
+
+    if schema_publication.type != "schema" or schema_publication.parent_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The provided id is not a root schema publication",
+        )
+
+    # Check if the association already exists
+    existing = db.query(models.ProjectSchemaPublication).filter(
+        models.ProjectSchemaPublication.project_id == project_id,
+        models.ProjectSchemaPublication.schema_publication_id == request.schema_publication_id
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This schema publication is already associated with the project",
+        )
+
+    # Create the association
+    association = models.ProjectSchemaPublication(
+        project_id=project_id,
+        schema_publication_id=request.schema_publication_id
+    )
+    db.add(association)
+    db.commit()
+    db.refresh(association)
+
+    return {
+        "id": association.id,
+        "project_id": association.project_id,
+        "schema_publication_id": association.schema_publication_id,
+        "message": f"Schema publication {request.schema_publication_id} added to project {project.name}"
+    }
+
+
+def _has_project_access(current_user: models.User, project: models.Project, db: Session) -> bool:
+    """Check if a user has any access to a project (owner, direct member, or team member)."""
+    if is_admin_user(current_user):
+        return True
+
+    if project.owner_id == current_user.id:
+        return True
+
+    # Check direct user access
+    user_access = db.query(models.ProjectUser).filter(
+        models.ProjectUser.project_id == project.id,
+        models.ProjectUser.user_id == current_user.id
+    ).first()
+    if user_access:
+        return True
+
+    # Check team access
+    team_access = db.query(models.ProjectTeam).join(
+        models.TeamMember,
+        models.TeamMember.team_id == models.ProjectTeam.team_id
+    ).filter(
+        models.ProjectTeam.project_id == project.id,
+        models.TeamMember.user_id == current_user.id
+    ).first()
+    if team_access:
+        return True
+
+    return False
+
+
+@router.get("/{project_id}/schema-publications")
+def get_schema_publications_by_project(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all schema publications associated with a project. Any project member can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if user has access to the project
+    if not _has_project_access(current_user, project, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this project",
+        )
+
+    # Get all schema publications associated with this project
+    associations = db.query(models.ProjectSchemaPublication).filter(
+        models.ProjectSchemaPublication.project_id == project_id
+    ).all()
+
+    schema_publications = []
+    for assoc in associations:
+        schema_pub = assoc.schema_publication
+        schema_publications.append({
+            "id": schema_pub.id,
+            "name": schema_pub.name,
+            "project_schema_publication_id": assoc.id,
+        })
+
+    return {
+        "project_id": project_id,
+        "schema_publications": schema_publications,
+    }
+
+
+@router.delete("/{project_id}/schema-publications", status_code=status.HTTP_204_NO_CONTENT)
+def remove_schema_publication_from_project(
+    project_id: int,
+    request: RemoveSchemaPublicationRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a schema publication from a project. Only the project owner can perform this action."""
+    # Check if project exists
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check if current user is the owner or admin
+    if project.owner_id != current_user.id and not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the project owner can remove schema publications",
+        )
+
+    # Check if the schema publication exists and is associated with the project
+    association = db.query(models.ProjectSchemaPublication).filter(
+        models.ProjectSchemaPublication.project_id == project_id,
+        models.ProjectSchemaPublication.schema_publication_id == request.schema_publication_id
+    ).first()
+    if not association:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This schema publication is not associated with the project",
+        )
+
+    # Delete the association (the schema publication itself remains)
+    db.delete(association)
+    db.commit()
+
+    return None
 
 
 @router.get("/user/{user_id}/projects")
