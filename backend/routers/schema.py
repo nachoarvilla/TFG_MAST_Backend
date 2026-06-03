@@ -40,6 +40,9 @@ class AnnotationSchemaResponse(BaseModel):
 AnnotationSchemaResponse.update_forward_refs()
 
 
+SchemaPublicationResponse = AnnotationSchemaResponse
+
+
 def _create_schema_node(
     node: AnnotationSchemaNode,
     current_user: models.User,
@@ -79,6 +82,44 @@ def _build_schema_response(node: models.AnnotationSchema) -> dict:
     }
 
 
+def _build_publication_response(node: models.SchemaPublication) -> dict:
+    return {
+        "id": node.id,
+        "name": node.name,
+        "type": node.type,
+        "parent_id": node.parent_id,
+        "children": [_build_publication_response(child) for child in node.children],
+    }
+
+
+def _publish_schema_node(
+    node: models.AnnotationSchema,
+    annotation_schema_id: int,
+    db: Session,
+    parent_id: int | None = None,
+    name_suffix: str | None = None,
+) -> models.SchemaPublication:
+    node_name = f"{node.name}{name_suffix}" if name_suffix else node.name
+    publication_obj = models.SchemaPublication(
+        name=node_name,
+        type=node.type,
+        parent_id=parent_id,
+        annotation_schema_id=annotation_schema_id,
+    )
+    db.add(publication_obj)
+    db.flush()
+
+    for child in node.children:
+        _publish_schema_node(
+            child,
+            annotation_schema_id=annotation_schema_id,
+            db=db,
+            parent_id=publication_obj.id,
+        )
+
+    return publication_obj
+
+
 def _get_root_schema(db: Session, schema_id: int) -> models.AnnotationSchema:
     schema_obj = db.get(models.AnnotationSchema, schema_id)
     if not schema_obj:
@@ -102,6 +143,86 @@ def get_annotation_schema(
 ):
     schema_obj = _get_root_schema(db, schema_id)
     return _build_schema_response(schema_obj)
+
+
+@router.post("/publish_annotation_schema/{schema_id}", status_code=status.HTTP_201_CREATED, response_model=SchemaPublicationResponse)
+def publish_annotation_schema(
+    schema_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    schema_obj = _get_root_schema(db, schema_id)
+    if schema_obj.user_creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the schema owner can publish this schema",
+        )
+
+    version_count = (
+        db.query(models.SchemaPublication)
+        .filter(
+            models.SchemaPublication.annotation_schema_id == schema_id,
+            models.SchemaPublication.parent_id.is_(None),
+        )
+        .count()
+    )
+    version = version_count + 1
+    name_suffix = f" v{version}"
+
+    publication_root = _publish_schema_node(
+        schema_obj,
+        annotation_schema_id=schema_id,
+        db=db,
+        parent_id=None,
+        name_suffix=name_suffix,
+    )
+
+    db.commit()
+    db.refresh(publication_root)
+    return _build_publication_response(publication_root)
+
+
+def _get_root_publication(db: Session, publication_id: int) -> models.SchemaPublication:
+    publication_obj = db.get(models.SchemaPublication, publication_id)
+    if not publication_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publication not found",
+        )
+    if publication_obj.type != "schema" or publication_obj.parent_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The provided id is not a root publication",
+        )
+    return publication_obj
+
+
+@router.get("/publications/{publication_id}", response_model=SchemaPublicationResponse)
+def get_schema_publication(
+    publication_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    publication_obj = _get_root_publication(db, publication_id)
+    return _build_publication_response(publication_obj)
+
+
+@router.delete("/publications/{publication_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_schema_publication(
+    publication_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    publication_obj = _get_root_publication(db, publication_id)
+    if publication_obj.annotation_schema.user_creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the schema owner can delete this publication",
+        )
+
+    db.delete(publication_obj)
+    db.commit()
+    return None
 
 
 def _delete_subtree(node: models.AnnotationSchema, db: Session) -> None:
