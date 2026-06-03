@@ -67,6 +67,7 @@ class Project(Base):
     user_access = relationship("ProjectUser", back_populates="project", cascade="all, delete-orphan")
     team_access = relationship("ProjectTeam", back_populates="project", cascade="all, delete-orphan")
     documents = relationship("ProjectDocument", back_populates="project", cascade="all, delete-orphan")
+    schema_publications = relationship("ProjectSchemaPublication", back_populates="project", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -192,3 +193,21 @@ class SchemaPublication(Base):
     annotation_schema = relationship("AnnotationSchema", back_populates="publications")
     parent = relationship("SchemaPublication", remote_side=[id], back_populates="children")
     children = relationship("SchemaPublication", back_populates="parent", cascade="all, delete-orphan")
+    projects = relationship("ProjectSchemaPublication", back_populates="schema_publication", cascade="all, delete-orphan")
+
+
+class ProjectSchemaPublication(Base):
+    __tablename__ = "project_schema_publications"
+    __table_args__ = (
+        UniqueConstraint("project_id", "schema_publication_id", name="uq_project_schema_publication"),
+        Index("idx_project_schema_publications_project_id", "project_id"),
+        Index("idx_project_schema_publications_schema_publication_id", "schema_publication_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    schema_publication_id = Column(Integer, ForeignKey("schema_publications.id", ondelete="CASCADE"), nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="schema_publications")
+    schema_publication = relationship("SchemaPublication", back_populates="projects")
