@@ -196,14 +196,14 @@ def test_publish_annotation_schema_creates_versioned_publications(client, auth_t
         headers=auth_headers(auth_token),
     )
     assert publish_response_1.status_code == 201
-    assert publish_response_1.json()["name"].endswith(" v1")
+    assert publish_response_1.json()["name"].endswith(" (v1)")
 
     publish_response_2 = client.post(
         f"/schemas/publish_annotation_schema/{schema_id}",
         headers=auth_headers(auth_token),
     )
     assert publish_response_2.status_code == 201
-    assert publish_response_2.json()["name"].endswith(" v2")
+    assert publish_response_2.json()["name"].endswith(" (v2)")
 
     publication_roots = db_session.query(models.SchemaPublication).filter_by(annotation_schema_id=schema_id, parent_id=None).all()
     assert len(publication_roots) == 2
@@ -274,7 +274,7 @@ def test_get_schema_publication_tree(client, auth_token):
 
     data = get_response.json()
     assert data["id"] == publication_id
-    assert data["name"].endswith(" v1")
+    assert data["name"].endswith(" (v1)")
     assert data["type"] == "schema"
     assert len(data["children"]) == 1
     assert data["children"][0]["type"] == "class"
@@ -799,7 +799,8 @@ def test_remove_schema_publication_from_project(client, auth_token, db_session):
     assert add_schema_response.status_code == 201
 
     # Remove the schema publication
-    delete_response = client.delete(
+    delete_response = client.request(
+        "DELETE",
         f"/projects/{project_id}/schema-publications",
         json={"schema_publication_id": publication_id},
         headers=auth_headers(auth_token),
@@ -886,7 +887,8 @@ def test_remove_schema_publication_requires_owner(client, auth_token, create_use
     assert add_user_response.status_code == 201
 
     # Try to remove the schema publication as collaborator
-    delete_response = client.delete(
+    delete_response = client.request(
+        "DELETE",
         f"/projects/{project_id}/schema-publications",
         json={"schema_publication_id": publication_id},
         headers=auth_headers(other_token),
