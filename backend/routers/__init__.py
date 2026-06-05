@@ -3,6 +3,7 @@ from .team import router as team_router
 from .root import router as root_router
 from .project import router as project_router
 from .regions import router as regions_router
+from .annotation import router as annotation_router
 from .schema import router as schema_router
 from .user import router as user_router
 from .document import router as document_router
