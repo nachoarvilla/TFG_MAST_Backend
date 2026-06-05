@@ -175,3 +175,188 @@ def test_create_annotation_forbidden_for_project_viewer(client, auth_token, crea
 
     assert create_annotation_response.status_code == 403
     assert "Only project owners and collaborators can create annotations" in create_annotation_response.json()["detail"]
+
+
+def test_get_annotation_by_project_member(client, auth_token, create_user, db_session):
+    # Setup schema and publication
+    schema_payload = {
+        "name": "Annotation Schema Read",
+        "type": "schema",
+        "children": [
+            {"name": "Label", "type": "annotation"},
+        ],
+    }
+    create_schema_response = client.post("/schemas", json=schema_payload, headers=auth_headers(auth_token))
+    assert create_schema_response.status_code == 201
+    schema_id = create_schema_response.json()["id"]
+
+    publish_response = client.post(f"/schemas/publish_annotation_schema/{schema_id}", headers=auth_headers(auth_token))
+    assert publish_response.status_code == 201
+    root_publication_id = publish_response.json()["id"]
+
+    root_publication = db_session.query(models.SchemaPublication).filter(
+        models.SchemaPublication.annotation_schema_id == schema_id,
+        models.SchemaPublication.parent_id.is_(None),
+    ).first()
+    annotation_publication = root_publication.children[0]
+
+    # Create project and associate schema
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Annotation Read", "description": "Test annotations", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+
+    client.post(f"/projects/{project_id}/schema-publications", json={"schema_publication_id": root_publication_id}, headers=auth_headers(auth_token))
+
+    owner_id = project_response.json()["owner_id"]
+    document = models.Document(
+        name="annotation-read.pdf",
+        file_path="uploads/test/annotation-read.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+
+    project_document = models.ProjectDocument(project_id=project_id, document_id=document.id)
+    db_session.add(project_document)
+    db_session.commit()
+    db_session.refresh(project_document)
+
+    region = models.Region(
+        project_document_id=project_document.id,
+        page_number=1,
+        type="Polygon",
+        coordinates=[[1, 1], [2, 2], [3, 3]],
+    )
+    db_session.add(region)
+    db_session.commit()
+    db_session.refresh(region)
+
+    # Create annotation
+    create_annotation_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}/annotations",
+        json={"schema_publication_id": annotation_publication.id},
+        headers=auth_headers(auth_token),
+    )
+    assert create_annotation_response.status_code == 201
+    annotation_id = create_annotation_response.json()["id"]
+
+    # Create a viewer user (member) and ensure they can GET the annotation
+    viewer = create_user("ann_reader", "ann_reader@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=viewer.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": viewer.username, "password": "password123"},
+    )
+    viewer_token = login_response.json()["access_token"]
+
+    get_response = client.get(f"/projects/annotations/{annotation_id}", headers=auth_headers(viewer_token))
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert data["id"] == annotation_id
+    assert data["schema_publication_name"] == annotation_publication.name
+
+
+def test_delete_annotation_permissions(client, auth_token, create_user, db_session):
+    # Setup schema and publication
+    schema_payload = {
+        "name": "Annotation Schema Delete",
+        "type": "schema",
+        "children": [
+            {"name": "Strike", "type": "annotation"},
+        ],
+    }
+    create_schema_response = client.post("/schemas", json=schema_payload, headers=auth_headers(auth_token))
+    assert create_schema_response.status_code == 201
+    schema_id = create_schema_response.json()["id"]
+
+    publish_response = client.post(f"/schemas/publish_annotation_schema/{schema_id}", headers=auth_headers(auth_token))
+    assert publish_response.status_code == 201
+    root_publication_id = publish_response.json()["id"]
+
+    root_publication = db_session.query(models.SchemaPublication).filter(
+        models.SchemaPublication.annotation_schema_id == schema_id,
+        models.SchemaPublication.parent_id.is_(None),
+    ).first()
+    annotation_publication = root_publication.children[0]
+
+    # Create project and associate schema
+    project_response = client.post(
+        "/projects",
+        json={"name": "Project Annotation Delete", "description": "Test annotations", "is_private": True},
+        headers=auth_headers(auth_token),
+    )
+    project_id = project_response.json()["id"]
+    owner_id = project_response.json()["owner_id"]
+
+    client.post(f"/projects/{project_id}/schema-publications", json={"schema_publication_id": root_publication_id}, headers=auth_headers(auth_token))
+
+    document = models.Document(
+        name="annotation-delete.pdf",
+        file_path="uploads/test/annotation-delete.pdf",
+        total_pages=1,
+        uploader_id=owner_id,
+    )
+    db_session.add(document)
+    db_session.commit()
+    db_session.refresh(document)
+
+    project_document = models.ProjectDocument(project_id=project_id, document_id=document.id)
+    db_session.add(project_document)
+    db_session.commit()
+    db_session.refresh(project_document)
+
+    region = models.Region(
+        project_document_id=project_document.id,
+        page_number=1,
+        type="Polygon",
+        coordinates=[[1, 1], [2, 2], [3, 3]],
+    )
+    db_session.add(region)
+    db_session.commit()
+    db_session.refresh(region)
+
+    # Create annotation
+    create_annotation_response = client.post(
+        f"/projects/{project_id}/documents/{document.id}/regions/{region.id}/annotations",
+        json={"schema_publication_id": annotation_publication.id},
+        headers=auth_headers(auth_token),
+    )
+    assert create_annotation_response.status_code == 201
+    annotation_id = create_annotation_response.json()["id"]
+
+    # Create a viewer user and ensure they cannot delete
+    viewer = create_user("ann_delete_viewer", "ann_delete_viewer@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=viewer.id, role="viewer"))
+    db_session.commit()
+
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": viewer.username, "password": "password123"},
+    )
+    viewer_token = login_response.json()["access_token"]
+
+    del_response = client.delete(f"/projects/annotations/{annotation_id}", headers=auth_headers(viewer_token))
+    assert del_response.status_code == 403
+
+    # Now create collaborator and ensure they can delete
+    collaborator = create_user("ann_delete_collab", "ann_delete_collab@example.com", "password123")
+    db_session.add(models.ProjectUser(project_id=project_id, user_id=collaborator.id, role="collaborator"))
+    db_session.commit()
+    login_response = client.post(
+        "/login",
+        json={"username_or_email": collaborator.username, "password": "password123"},
+    )
+    collab_token = login_response.json()["access_token"]
+
+    del_response = client.delete(f"/projects/annotations/{annotation_id}", headers=auth_headers(collab_token))
+    assert del_response.status_code == 204
+
+    # Confirm deletion in DB
+    assert db_session.query(models.Annotation).filter(models.Annotation.id == annotation_id).first() is None
