@@ -151,6 +151,7 @@ class Region(Base):
 
     # Relationships
     project_document = relationship("ProjectDocument", back_populates="regions")
+    annotations = relationship("Annotation", back_populates="region", cascade="all, delete-orphan")
 
 
 class AnnotationSchema(Base):
@@ -211,3 +212,16 @@ class ProjectSchemaPublication(Base):
     # Relationships
     project = relationship("Project", back_populates="schema_publications")
     schema_publication = relationship("SchemaPublication", back_populates="projects")
+
+
+class Annotation(Base):
+    __tablename__ = "annotations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    region_id = Column(Integer, ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
+    schema_publication_id = Column(Integer, ForeignKey("schema_publications.id", ondelete="CASCADE"), nullable=False)
+    root_schema_publication_id = Column(Integer, ForeignKey("schema_publications.id", ondelete="CASCADE"), nullable=False)
+    created_date = Column(DateTime, server_default=func.now(), nullable=False)
+
+    # Relationships
+    region = relationship("Region", back_populates="annotations")
