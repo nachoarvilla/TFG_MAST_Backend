@@ -260,7 +260,7 @@ def test_get_annotation_by_project_member(client, auth_token, create_user, db_se
     assert get_response.status_code == 200
     data = get_response.json()
     assert data["id"] == annotation_id
-    assert data["schema_publication_name"] == annotation_publication.name
+    assert data["annotation_name"] == annotation_publication.name
 
 
 def test_delete_annotation_permissions(client, auth_token, create_user, db_session):

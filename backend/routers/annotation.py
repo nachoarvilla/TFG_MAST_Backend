@@ -171,6 +171,7 @@ def list_region_annotations(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """List annotations for a region. Any project member can perform this action."""
     # Verify project and membership (any role allowed)
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
@@ -204,7 +205,7 @@ def list_region_annotations(
             "region_id": region.id,
             "schema_publication_id": a.schema_publication_id,
             "root_schema_publication_id": a.root_schema_publication_id,
-            "schema_publication_name": sp.name if sp else None,
+            "annotation_name": sp.name if sp else None,
             "created_date": a.created_date,
         })
 
@@ -216,7 +217,8 @@ def get_annotation(
     annotation_id: int,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+):   
+    """Get annotation details. Any project member can perform this action."""
     annotation = db.query(models.Annotation).filter(models.Annotation.id == annotation_id).first()
     if not annotation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Annotation not found")
@@ -245,7 +247,7 @@ def get_annotation(
         "region_id": annotation.region_id,
         "schema_publication_id": annotation.schema_publication_id,
         "root_schema_publication_id": annotation.root_schema_publication_id,
-        "schema_publication_name": sp.name if sp else None,
+        "annotation_name": sp.name if sp else None,
         "created_date": annotation.created_date,
     }
 
@@ -256,6 +258,7 @@ def delete_annotation(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Delete an annotation. Only project owners and collaborators can perform this action."""
     annotation = db.query(models.Annotation).filter(models.Annotation.id == annotation_id).first()
     if not annotation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Annotation not found")
